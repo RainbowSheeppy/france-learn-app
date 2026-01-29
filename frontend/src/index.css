@@ -1,0 +1,969 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   PLAYFUL EDITORIAL DESIGN SYSTEM
+   French Learning App - 2026
+   ============================================ */
+
+@layer base {
+  :root {
+    /* Core Brand Colors - Warm Coral + Deep Navy */
+    --fr-cream: 48 100% 97%;
+    --fr-cream-dark: 45 30% 92%;
+    --fr-navy: 220 40% 13%;
+    --fr-navy-light: 220 30% 25%;
+    --fr-coral: 16 90% 60%;
+    --fr-coral-dark: 16 85% 50%;
+    --fr-lavender: 260 60% 70%;
+    --fr-lavender-dark: 260 50% 55%;
+    --fr-mint: 160 50% 55%;
+    --fr-mint-dark: 160 45% 45%;
+    --fr-rose: 350 80% 65%;
+    --fr-rose-dark: 350 70% 55%;
+
+    /* Semantic mappings */
+    --background: var(--fr-cream);
+    --foreground: var(--fr-navy);
+
+    --card: 0 0% 100%;
+    --card-foreground: var(--fr-navy);
+
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--fr-navy);
+
+    --primary: var(--fr-coral);
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: var(--fr-cream-dark);
+    --secondary-foreground: var(--fr-navy);
+
+    --muted: var(--fr-cream-dark);
+    --muted-foreground: 220 20% 45%;
+
+    --accent: var(--fr-lavender);
+    --accent-foreground: var(--fr-navy);
+
+    --destructive: var(--fr-rose);
+    --destructive-foreground: 0 0% 100%;
+
+    --success: var(--fr-mint);
+    --success-foreground: var(--fr-navy);
+
+    --border: 45 20% 88%;
+    --input: 45 20% 88%;
+    --ring: var(--fr-coral);
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: var(--fr-navy);
+    --foreground: 48 100% 97%;
+
+    --card: 220 35% 18%;
+    --card-foreground: 48 100% 97%;
+
+    --popover: 220 35% 18%;
+    --popover-foreground: 48 100% 97%;
+
+    --primary: var(--fr-coral);
+    --primary-foreground: var(--fr-navy);
+
+    --secondary: 220 30% 22%;
+    --secondary-foreground: 48 100% 97%;
+
+    --muted: 220 30% 22%;
+    --muted-foreground: 220 15% 60%;
+
+    --accent: var(--fr-lavender-dark);
+    --accent-foreground: 48 100% 97%;
+
+    --destructive: var(--fr-rose);
+    --destructive-foreground: 48 100% 97%;
+
+    --border: 220 30% 25%;
+    --input: 220 30% 25%;
+    --ring: var(--fr-coral);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
+  }
+}
+
+/* ============================================
+   ANIMATION KEYFRAMES
+   ============================================ */
+
+/* Success confetti burst */
+@keyframes confetti-burst {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.2) rotate(180deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Success pulse effect */
+@keyframes success-pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 hsla(var(--fr-mint), 0.4);
+  }
+
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 20px hsla(var(--fr-mint), 0);
+  }
+}
+
+/* Card entrance animation */
+@keyframes card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Celebration shake */
+@keyframes celebration-shake {
+
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  25% {
+    transform: rotate(-5deg);
+  }
+
+  75% {
+    transform: rotate(5deg);
+  }
+}
+
+/* Float animation for badges */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Glow pulse for active elements */
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px hsla(var(--fr-coral), 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 20px hsla(var(--fr-coral), 0.5), 0 0 40px hsla(var(--fr-coral), 0.2);
+  }
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Slide up animation */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Bounce in animation */
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  70% {
+    transform: scale(0.9);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Confetti particle animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Points popup animation */
+@keyframes points-popup {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.5);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.2);
+  }
+
+  80% {
+    opacity: 1;
+    transform: translateY(-30px) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.8);
+  }
+}
+
+/* Shake animation for wrong answers */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* Pulse grow animation */
+@keyframes pulse-grow {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Sparkle animation */
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+/* Flip card animation */
+@keyframes flip-in {
+  0% {
+    transform: perspective(1000px) rotateY(-90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: perspective(1000px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+/* Scale pop animation */
+@keyframes scale-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Ribbon wave animation for HK */
+@keyframes ribbon-wave {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.animate-success-pulse {
+  animation: success-pulse 0.8s ease-in-out;
+}
+
+.animate-celebration-shake {
+  animation: celebration-shake 0.5s ease-in-out;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-card-entrance {
+  animation: card-entrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.animate-points-popup {
+  animation: points-popup 1.2s ease-out forwards;
+}
+
+.animate-shake {
+  animation: shake 0.6s ease-in-out;
+}
+
+.animate-pulse-grow {
+  animation: pulse-grow 0.5s ease-in-out;
+}
+
+.animate-sparkle {
+  animation: sparkle 0.8s ease-in-out;
+}
+
+.animate-flip-in {
+  animation: flip-in 0.5s ease-out forwards;
+}
+
+.animate-scale-pop {
+  animation: scale-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-ribbon-wave {
+  animation: ribbon-wave 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+}
+
+/* Staggered card animations */
+.animate-card-entrance:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.animate-card-entrance:nth-child(2) {
+  animation-delay: 100ms;
+}
+
+.animate-card-entrance:nth-child(3) {
+  animation-delay: 200ms;
+}
+
+.animate-card-entrance:nth-child(4) {
+  animation-delay: 300ms;
+}
+
+.animate-card-entrance:nth-child(5) {
+  animation-delay: 400ms;
+}
+
+.animate-card-entrance:nth-child(6) {
+  animation-delay: 500ms;
+}
+
+/* ============================================
+   STUDY MODE SPECIFIC STYLES
+   ============================================ */
+
+/* Success state for inputs */
+.input-success {
+  @apply border-2 transition-all duration-300;
+  border-color: hsl(var(--fr-mint));
+  background-color: hsla(var(--fr-mint), 0.1);
+  animation: success-pulse 0.5s ease-out;
+}
+
+/* Error state for inputs */
+.input-error {
+  @apply border-2 transition-all duration-300;
+  border-color: hsl(var(--fr-rose));
+  background-color: hsla(var(--fr-rose), 0.1);
+}
+
+/* Coral gradient button */
+.btn-coral {
+  background: linear-gradient(135deg, hsl(var(--fr-coral)) 0%, hsl(var(--fr-coral-dark)) 100%);
+  color: white;
+  @apply font-semibold shadow-lg transition-all duration-300;
+}
+
+.btn-coral:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px hsla(var(--fr-coral), 0.5);
+}
+
+/* Mode cards for student dashboard */
+.mode-card {
+  @apply relative overflow-hidden rounded-2xl border-2 border-transparent transition-all duration-300;
+  background: white;
+}
+
+.mode-card:hover {
+  @apply border-opacity-100 shadow-2xl;
+  transform: translateY(-8px);
+}
+
+.mode-card::before {
+  content: '';
+  @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+  background: linear-gradient(135deg, hsla(var(--fr-coral), 0.05) 0%, hsla(var(--fr-lavender), 0.05) 100%);
+}
+
+.mode-card:hover::before {
+  @apply opacity-100;
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--fr-cream-dark));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsla(var(--fr-coral), 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--fr-coral));
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ============================================
+   FLIP CARD UTILITIES
+   ============================================ */
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* ============================================
+   GLASSMORPHISM UTILITIES
+   ============================================ */
+
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ============================================
+   HELLO KITTY THEME (Student Only)
+   🎀 Kawaii vibes for learning! 🎀
+   ============================================ */
+
+/* Hello Kitty Color Palette */
+.theme-hellokitty {
+  --hk-pink: 350 90% 75%;
+  --hk-pink-dark: 350 80% 65%;
+  --hk-pink-light: 350 100% 92%;
+  --hk-white: 0 0% 100%;
+  --hk-red-bow: 0 85% 55%;
+  --hk-yellow-nose: 45 100% 60%;
+  --hk-black: 0 0% 15%;
+
+  /* Override semantic colors */
+  --background: var(--hk-pink-light);
+  --primary: var(--hk-pink);
+  --ring: var(--hk-pink);
+}
+
+/* Hello Kitty Background */
+.hk-bg {
+  background: linear-gradient(135deg, hsl(350, 100%, 95%) 0%, hsl(330, 80%, 92%) 50%, hsl(350, 100%, 95%) 100%);
+  position: relative;
+}
+
+.hk-bg::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    radial-gradient(circle at 10% 20%, hsla(350, 90%, 80%, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 90% 80%, hsla(330, 90%, 80%, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, hsla(0, 0%, 100%, 0.3) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Hello Kitty Card Style */
+.hk-card {
+  background: white;
+  border: 3px solid hsl(350, 90%, 80%);
+  border-radius: 24px;
+  box-shadow:
+    0 4px 20px hsla(350, 90%, 70%, 0.2),
+    inset 0 2px 0 hsla(0, 0%, 100%, 0.8);
+  position: relative;
+  overflow: visible;
+}
+
+.hk-card::before {
+  content: '🎀';
+  position: absolute;
+  top: -12px;
+  right: 16px;
+  font-size: 24px;
+  filter: drop-shadow(0 2px 4px hsla(0, 0%, 0%, 0.1));
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Hello Kitty Button */
+.hk-btn {
+  background: linear-gradient(135deg, hsl(350, 90%, 75%) 0%, hsl(350, 80%, 65%) 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-weight: 600;
+  box-shadow:
+    0 4px 15px hsla(350, 90%, 60%, 0.4),
+    inset 0 2px 0 hsla(0, 0%, 100%, 0.3);
+  transition: all 0.3s ease;
+}
+
+.hk-btn:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow:
+    0 8px 25px hsla(350, 90%, 60%, 0.5),
+    inset 0 2px 0 hsla(0, 0%, 100%, 0.3);
+}
+
+/* Hello Kitty Mode Card */
+.hk-mode-card {
+  background: white;
+  border: 2px solid hsl(350, 80%, 85%);
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.hk-mode-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, hsla(350, 100%, 90%, 0) 0%, hsla(350, 100%, 85%, 0.3) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.hk-mode-card:hover {
+  transform: translateY(-8px) rotate(-1deg);
+  border-color: hsl(350, 90%, 70%);
+  box-shadow:
+    0 15px 40px hsla(350, 90%, 70%, 0.25),
+    0 5px 15px hsla(350, 90%, 70%, 0.15);
+}
+
+.hk-mode-card:hover::after {
+  opacity: 1;
+}
+
+/* Hello Kitty Input */
+.hk-input {
+  border: 2px solid hsl(350, 70%, 85%);
+  border-radius: 16px;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.hk-input:focus {
+  border-color: hsl(350, 90%, 70%);
+  box-shadow: 0 0 0 4px hsla(350, 90%, 70%, 0.15);
+  outline: none;
+}
+
+.hk-input-correct {
+  border-color: hsl(340, 70%, 65%);
+  background: hsl(350, 100%, 97%);
+}
+
+/* Hello Kitty Progress Bar */
+.hk-progress {
+  background: hsl(350, 60%, 90%);
+  border-radius: 10px;
+  overflow: hidden;
+  height: 10px;
+}
+
+.hk-progress-bar {
+  background: linear-gradient(90deg, hsl(350, 90%, 75%) 0%, hsl(330, 90%, 70%) 50%, hsl(350, 90%, 75%) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+  height: 100%;
+  border-radius: 10px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Hello Kitty Stats Cards */
+.hk-stat-card {
+  background: linear-gradient(135deg, hsl(350, 100%, 97%) 0%, hsl(340, 80%, 95%) 100%);
+  border: 2px solid hsl(350, 80%, 88%);
+  border-radius: 16px;
+}
+
+/* Hello Kitty Success Animation */
+@keyframes hk-sparkle {
+
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.2) rotate(10deg);
+    opacity: 0.8;
+  }
+}
+
+.hk-sparkle {
+  animation: hk-sparkle 0.6s ease-in-out;
+}
+
+/* Hello Kitty Hearts Rain */
+@keyframes hearts-fall {
+  0% {
+    transform: translateY(-100%) rotate(0deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.hk-heart {
+  position: fixed;
+  font-size: 20px;
+  animation: hearts-fall 3s ease-in forwards;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Hello Kitty Header */
+.hk-header {
+  background: linear-gradient(135deg, hsla(350, 100%, 95%, 0.95) 0%, hsla(330, 80%, 93%, 0.95) 100%);
+  border-bottom: 2px solid hsl(350, 70%, 88%);
+}
+
+/* Kawaii Text Styles */
+.hk-title {
+  color: hsl(350, 60%, 45%);
+  text-shadow: 2px 2px 0 hsl(350, 100%, 90%);
+}
+
+.hk-text {
+  color: hsl(350, 40%, 40%);
+}
+
+.hk-text-muted {
+  color: hsl(350, 30%, 55%);
+}
+
+/* Hello Kitty Scrollbar */
+.theme-hellokitty::-webkit-scrollbar-thumb {
+  background: hsl(350, 80%, 75%);
+}
+
+.theme-hellokitty::-webkit-scrollbar-track {
+  background: hsl(350, 60%, 92%);
+}
+
+/* ============================================
+   HELLO KITTY THEME - ENHANCED KAWAII ELEMENTS
+   ============================================ */
+
+/* Floating decorative elements */
+@keyframes hk-float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-8px) rotate(2deg); }
+  75% { transform: translateY(-4px) rotate(-2deg); }
+}
+
+@keyframes hk-twinkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.8); }
+}
+
+@keyframes hk-bounce-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.hk-float-slow {
+  animation: hk-float-slow 4s ease-in-out infinite;
+}
+
+.hk-twinkle {
+  animation: hk-twinkle 2s ease-in-out infinite;
+}
+
+.hk-bounce-gentle {
+  animation: hk-bounce-gentle 2s ease-in-out infinite;
+}
+
+/* Pastel gradient cards for HK theme */
+.hk-gradient-card {
+  background: linear-gradient(135deg,
+    hsla(350, 100%, 97%, 0.9) 0%,
+    hsla(330, 80%, 95%, 0.9) 50%,
+    hsla(350, 100%, 97%, 0.9) 100%
+  );
+  border: 2px solid hsl(350, 80%, 88%);
+  box-shadow:
+    0 4px 20px hsla(350, 80%, 70%, 0.15),
+    inset 0 1px 0 hsla(0, 0%, 100%, 0.8);
+}
+
+/* Kawaii ribbon decoration */
+.hk-ribbon {
+  position: relative;
+}
+
+.hk-ribbon::before {
+  content: '🎀';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  animation: hk-bounce-gentle 2.5s ease-in-out infinite;
+}
+
+/* Kawaii corner stars */
+.hk-stars::before,
+.hk-stars::after {
+  content: '✨';
+  position: absolute;
+  font-size: 14px;
+  animation: hk-twinkle 3s ease-in-out infinite;
+}
+
+.hk-stars::before {
+  top: 8px;
+  left: 8px;
+}
+
+.hk-stars::after {
+  bottom: 8px;
+  right: 8px;
+  animation-delay: 1.5s;
+}
+
+/* Kawaii success state */
+.hk-success {
+  background: linear-gradient(135deg,
+    hsl(350, 100%, 97%) 0%,
+    hsl(340, 90%, 95%) 100%
+  );
+  border-color: hsl(340, 80%, 75%);
+  box-shadow: 0 0 20px hsla(350, 90%, 70%, 0.3);
+}
+
+/* Kawaii button with hearts */
+.hk-btn-hearts {
+  position: relative;
+  overflow: visible;
+}
+
+.hk-btn-hearts::before,
+.hk-btn-hearts::after {
+  content: '💕';
+  position: absolute;
+  font-size: 12px;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.hk-btn-hearts::before {
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hk-btn-hearts::after {
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hk-btn-hearts:hover::before,
+.hk-btn-hearts:hover::after {
+  opacity: 1;
+}
+
+.hk-btn-hearts:hover::before {
+  left: -25px;
+}
+
+.hk-btn-hearts:hover::after {
+  right: -25px;
+}
+
+/* Kawaii input focus glow */
+.hk-input-glow:focus {
+  box-shadow:
+    0 0 0 4px hsla(350, 90%, 70%, 0.2),
+    0 0 20px hsla(350, 90%, 70%, 0.15);
+}
+
+/* Pastel mode card gradient */
+.hk-mode-card-gradient {
+  background: linear-gradient(145deg,
+    hsl(350, 100%, 98%) 0%,
+    hsl(340, 85%, 96%) 30%,
+    hsl(330, 80%, 95%) 70%,
+    hsl(350, 100%, 98%) 100%
+  );
+}
+
+/* Kawaii decorative border */
+.hk-border-cute {
+  border: 3px solid transparent;
+  border-image: linear-gradient(135deg,
+    hsl(350, 90%, 80%) 0%,
+    hsl(330, 85%, 75%) 50%,
+    hsl(350, 90%, 80%) 100%
+  ) 1;
+  border-radius: 20px;
+}
+
+/* Rainbow shimmer for special elements */
+@keyframes hk-rainbow-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.hk-rainbow {
+  background: linear-gradient(90deg,
+    hsl(350, 90%, 75%),
+    hsl(330, 85%, 70%),
+    hsl(340, 100%, 80%),
+    hsl(350, 90%, 75%)
+  );
+  background-size: 300% 100%;
+  animation: hk-rainbow-shimmer 3s ease-in-out infinite;
+}
+
+/* Kawaii tooltip styling */
+.hk-tooltip {
+  background: white;
+  border: 2px solid hsl(350, 80%, 85%);
+  border-radius: 16px;
+  box-shadow: 0 4px 15px hsla(350, 80%, 70%, 0.2);
+}
+
+.hk-tooltip::before {
+  content: '💖';
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+}

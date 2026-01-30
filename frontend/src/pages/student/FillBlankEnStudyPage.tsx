@@ -3,46 +3,38 @@ import { api, gamificationApi, wordleApi } from '@/lib/api';
 import { StudyGroup, StudySessionStats } from '@/types/study';
 import { StudyGroupSelector } from '@/components/StudyGroupSelector';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Pencil, HelpCircle, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Pencil, TextCursorInput, Lightbulb } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
-import { useLanguageStore } from '@/store/languageStore';
 import { normalizeForComparison } from '@/lib/utils';
 import SuccessCelebration from '@/components/SuccessCelebration';
 import { useGamificationStore } from '@/store/useGamificationStore';
 import { WordleModal } from '@/components/WordleModal';
 import { SessionSummary } from '@/components/SessionSummary';
 
-interface GuessObjectStudyItem {
+interface FillBlankStudyItem {
     id: string;
-    description_fr: string;
-    answer_fr: string;
+    sentence_with_blank: string;
+    answer: string;
+    sentence_pl?: string | null;
+    full_sentence?: string | null;
     hint?: string | null;
-    category?: string | null;
+    grammar_focus?: string | null;
 }
 
-export default function GuessObjectStudyPage() {
+export default function FillBlankEnStudyPage() {
     const user = useAuthStore((state) => state.user);
     const theme = useThemeStore((state) => state.theme);
-    const { activeLanguage } = useLanguageStore();
     const isAdmin = user?.is_superuser;
     const isHK = theme === 'hellokitty';
     const isDark = theme === 'dark';
 
-    // Language-specific article hint and placeholder
-    const articleHint = activeLanguage === 'fr'
-        ? 'Wpisz nazwę przedmiotu (z rodzajnikiem)'
-        : 'Type the object name (with article if needed)';
-    const articlePlaceholder = activeLanguage === 'fr'
-        ? 'le/la/un/une + nazwa...'
-        : 'a/an/the + name...';
-
     const [stateMode, setStateMode] = useState<'selection' | 'loading' | 'learning' | 'summary'>('selection');
     const [groups, setGroups] = useState<StudyGroup[]>([]);
-    const [items, setItems] = useState<GuessObjectStudyItem[]>([]);
+    const [items, setItems] = useState<FillBlankStudyItem[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [stats, setStats] = useState<StudySessionStats>({ correct: 0, wrong: 0, skipped: 0, startTime: Date.now() });
-    const [mistakes, setMistakes] = useState<GuessObjectStudyItem[]>([]);
+    const [mistakes, setMistakes] = useState<FillBlankStudyItem[]>([]);
 
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<'typing' | 'correct' | 'wrong'>('typing');
@@ -55,7 +47,7 @@ export default function GuessObjectStudyPage() {
     // Gamification state
     const { updateStats } = useGamificationStore();
     const [sessionPoints, setSessionPoints] = useState(0);
-    const [pointsDetails, setPointsDetails] = useState({ gained: 0, lost: 0, wordle: 0 });
+    const [pointsDetails, setPointsDetails] = useState({ gained: 0, lost: 0, wordle: 0, aiCorrected: 0 });
     const [maxSessionCombo, setMaxSessionCombo] = useState(0);
     const [showWordle, setShowWordle] = useState(false);
     const [wordleTarget, setWordleTarget] = useState("");
@@ -68,9 +60,9 @@ export default function GuessObjectStudyPage() {
         textMuted: isHK ? 'hk-text-muted' : isDark ? 'text-[hsl(220,20%,65%)]' : 'text-[hsl(220,20%,45%)]',
         input: isHK ? 'hk-input' : isDark ? 'bg-[hsl(220,30%,12%)] border-[hsl(220,30%,30%)] text-white' : 'border-[hsl(45,20%,85%)]',
         progress: isHK ? 'hk-progress' : isDark ? 'bg-[hsl(220,30%,20%)]' : 'bg-[hsl(45,20%,90%)]',
-        progressBar: isHK ? 'hk-progress-bar' : 'bg-gradient-to-r from-[hsl(45,100%,50%)] to-[hsl(30,90%,55%)]',
-        btn: isHK ? 'hk-btn' : 'bg-gradient-to-r from-[hsl(45,100%,50%)] to-[hsl(30,90%,55%)] text-white',
-        accent: isHK ? 'text-[hsl(350,80%,60%)]' : 'text-[hsl(45,100%,40%)]',
+        progressBar: isHK ? 'hk-progress-bar' : 'bg-gradient-to-r from-[hsl(160,50%,45%)] to-[hsl(180,60%,40%)]',
+        btn: isHK ? 'hk-btn' : 'bg-gradient-to-r from-[hsl(160,50%,45%)] to-[hsl(180,60%,40%)] text-white',
+        accent: isHK ? 'text-[hsl(350,80%,60%)]' : 'text-[hsl(160,50%,40%)]',
     };
 
     useEffect(() => {
@@ -86,7 +78,7 @@ export default function GuessObjectStudyPage() {
 
     const fetchGroups = async () => {
         try {
-            const res = await api.get<StudyGroup[]>('/study/guess-object/groups');
+            const res = await api.get<StudyGroup[]>('/en/study/fill-blank/groups');
             setGroups(res.data);
         } catch (e) { console.error(e); }
     };
@@ -95,10 +87,10 @@ export default function GuessObjectStudyPage() {
         setStateMode('loading');
         setStats({ correct: 0, wrong: 0, skipped: 0, startTime: Date.now() });
         setSessionPoints(0);
-        setPointsDetails({ gained: 0, lost: 0, wordle: 0 });
+        setPointsDetails({ gained: 0, lost: 0, wordle: 0, aiCorrected: 0 });
         setMaxSessionCombo(0);
         try {
-            const res = await api.post('/study/guess-object/session', {
+            const res = await api.post('/en/study/fill-blank/session', {
                 group_ids: groupIds,
                 include_learned: includeLearned,
                 limit: 50
@@ -113,21 +105,25 @@ export default function GuessObjectStudyPage() {
         }
     };
 
-    const handleGamification = async (correct: boolean) => {
+    const handleGamification = async (correct: boolean, isKnown: boolean = false, isAICorrection: boolean = false) => {
         try {
             const current = items[currentIndex];
             const scoreRes = await gamificationApi.submitScore({
                 is_correct: correct,
-                is_known: false,
+                is_known: isKnown,
                 item_id: current.id,
-                level: 'A1' // Defaulting level if untracked
+                level: 'A1'
             });
 
             updateStats(scoreRes.new_total_points, scoreRes.new_combo);
             setSessionPoints(prev => prev + scoreRes.points_delta);
 
             if (scoreRes.points_delta > 0) {
-                setPointsDetails(prev => ({ ...prev, gained: prev.gained + scoreRes.points_delta }));
+                setPointsDetails(prev => ({
+                    ...prev,
+                    gained: prev.gained + scoreRes.points_delta,
+                    aiCorrected: isAICorrection ? (prev.aiCorrected || 0) + scoreRes.points_delta : (prev.aiCorrected || 0)
+                }));
             } else {
                 setPointsDetails(prev => ({ ...prev, lost: prev.lost + Math.abs(scoreRes.points_delta) }));
             }
@@ -147,13 +143,13 @@ export default function GuessObjectStudyPage() {
     const checkAnswer = async () => {
         if (!input.trim()) return;
         const current = items[currentIndex];
-        const isCorrect = normalizeForComparison(input) === normalizeForComparison(current.answer_fr);
+        const isCorrect = normalizeForComparison(input) === normalizeForComparison(current.answer);
 
         setStatus(isCorrect ? 'correct' : 'wrong');
 
         if (isCorrect) {
             setStats(p => ({ ...p, correct: p.correct + 1 }));
-            api.post('/study/guess-object/progress', { item_id: current.id, learned: true }).catch(console.error);
+            api.post('/en/study/fill-blank/progress', { item_id: current.id, learned: true }).catch(console.error);
             setCelebrationType('correct');
             setShowCelebration(true);
 
@@ -163,7 +159,7 @@ export default function GuessObjectStudyPage() {
         } else {
             setStats(p => ({ ...p, wrong: p.wrong + 1 }));
             setMistakes(p => [...p, current]);
-            api.post('/study/guess-object/progress', { item_id: current.id, learned: false }).catch(console.error);
+            api.post('/en/study/fill-blank/progress', { item_id: current.id, learned: false }).catch(console.error);
 
             await handleGamification(false);
         }
@@ -206,11 +202,40 @@ export default function GuessObjectStudyPage() {
         setStateMode('learning');
     };
 
+    const grammarLabels: Record<string, string> = {
+        verb: 'Czasownik',
+        article: 'Rodzajnik',
+        preposition: 'Przyimek',
+        pronoun: 'Zaimek',
+        agreement: 'Zgodność'
+    };
+
+    const getGrammarLabel = (focus: string | null | undefined) => {
+        if (!focus) return null;
+        return grammarLabels[focus] || focus;
+    };
+
+    const renderSentenceWithBlank = (sentence: string) => {
+        const parts = sentence.split('___');
+        if (parts.length === 1) return sentence;
+
+        return (
+            <>
+                {parts[0]}
+                <span className={`inline-block mx-1 px-3 py-1 border-2 border-dashed rounded-lg min-w-[80px] text-center ${isHK ? 'bg-[hsl(350,80%,95%)] border-[hsl(350,70%,75%)]' : isDark ? 'bg-[hsl(220,30%,25%)] border-[hsl(160,40%,40%)]' : 'bg-[hsl(160,50%,95%)] border-[hsl(160,50%,60%)]'
+                    }`}>
+                    ?
+                </span>
+                {parts[1]}
+            </>
+        );
+    };
+
     if (stateMode === 'loading') {
         return (
             <div className={`min-h-[60vh] flex items-center justify-center ${colors.bg}`}>
                 <div className="text-center space-y-4">
-                    <div className={`w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto ${isHK ? 'border-[hsl(350,90%,70%)]' : 'border-[hsl(45,100%,50%)]'}`} />
+                    <div className={`w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto ${isHK ? 'border-[hsl(350,90%,70%)]' : 'border-[hsl(160,50%,50%)]'}`} />
                     <p className={`font-medium ${colors.textMuted}`}>Ładowanie...</p>
                 </div>
             </div>
@@ -224,7 +249,7 @@ export default function GuessObjectStudyPage() {
                     <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do Dashboard
                 </Button>
                 <div className="text-center mb-8">
-                    <h1 className={`text-4xl font-bold mb-2 ${colors.text}`}>Zgadnij przedmiot 🎯</h1>
+                    <h1 className={`text-4xl font-bold mb-2 ${colors.text}`}>Uzupełnij zdanie (EN) ✏️</h1>
                     <p className={colors.textMuted}>Wybierz grupy do ćwiczeń</p>
                 </div>
                 <StudyGroupSelector groups={groups} onStart={handleStart} isLoading={false} />
@@ -264,7 +289,7 @@ export default function GuessObjectStudyPage() {
                             {isHK ? '💖' : '✓'} {stats.correct}
                         </span>
                         {isAdmin && (
-                            <Button variant="ghost" size="sm" onClick={() => window.location.href = '/admin/guess-object'}>
+                            <Button variant="ghost" size="sm" onClick={() => window.location.href = '/admin/fill-blank-en'}>
                                 <Pencil className="w-4 h-4 mr-1" /> Edytuj
                             </Button>
                         )}
@@ -282,21 +307,21 @@ export default function GuessObjectStudyPage() {
                 status === 'wrong' ? 'border-[hsl(350,80%,65%)]' :
                     colors.card
                 }`}>
-                {/* Description Section */}
-                <div className={`p-8 text-center ${isHK ? 'bg-gradient-to-b from-[hsl(350,100%,97%)] to-white' : isDark ? 'bg-[hsl(220,30%,18%)]' : 'bg-gradient-to-b from-[hsl(45,80%,97%)] to-white'}`}>
+                {/* Question Section */}
+                <div className={`p-8 text-center ${isHK ? 'bg-gradient-to-b from-[hsl(350,100%,97%)] to-white' : isDark ? 'bg-[hsl(220,30%,18%)]' : 'bg-gradient-to-b from-[hsl(160,50%,97%)] to-white'}`}>
                     <div className="flex items-center justify-center gap-2 mb-4">
-                        <HelpCircle className={`w-5 h-5 ${colors.accent}`} />
+                        <TextCursorInput className={`w-5 h-5 ${colors.accent}`} />
                         <p className={`text-xs font-medium uppercase tracking-wider ${colors.textMuted}`}>
-                            Opis przedmiotu
+                            Uzupełnij lukę
                         </p>
-                        {currentItem.category && (
+                        {currentItem.grammar_focus && (
                             <span className={`px-2 py-0.5 text-xs rounded-full ${isHK ? 'bg-[hsl(350,80%,92%)] text-[hsl(350,50%,45%)]' : 'bg-[hsl(260,60%,95%)] text-[hsl(260,50%,45%)]'}`}>
-                                {currentItem.category}
+                                {getGrammarLabel(currentItem.grammar_focus)}
                             </span>
                         )}
                     </div>
                     <p className={`text-xl font-medium leading-relaxed ${colors.text}`}>
-                        {currentItem.description_fr}
+                        {renderSentenceWithBlank(currentItem.sentence_with_blank)}
                     </p>
 
                     {currentItem.hint && (
@@ -316,7 +341,7 @@ export default function GuessObjectStudyPage() {
 
                 {/* Answer Section */}
                 <div className={`p-8 space-y-6 ${isDark ? 'bg-[hsl(220,30%,15%)]' : ''}`}>
-                    <p className={`text-sm text-center ${colors.textMuted}`}>{articleHint}</p>
+                    <p className={`text-sm text-center ${colors.textMuted}`}>Wpisz brakujące słowo</p>
 
                     <input
                         ref={inputRef}
@@ -326,10 +351,10 @@ export default function GuessObjectStudyPage() {
                         onKeyDown={e => e.key === 'Enter' && (status === 'typing' ? checkAnswer() : handleWrongNext())}
                         disabled={status !== 'typing'}
                         className={`w-full text-center text-xl p-5 rounded-2xl border-2 transition-all outline-none font-medium
-              ${status === 'typing' ? `${colors.input} focus:border-[hsl(${isHK ? '350,90%,70%' : '45,100%,50%'})] focus:shadow-[0_0_0_3px_hsl(${isHK ? '350,90%,70%' : '45,100%,50%'},0.1)]` : ''}
+              ${status === 'typing' ? `${colors.input} focus:border-[hsl(${isHK ? '350,90%,70%' : '160,50%,50%'})] focus:shadow-[0_0_0_3px_hsl(${isHK ? '350,90%,70%' : '160,50%,50%'},0.1)]` : ''}
               ${status === 'correct' ? (isHK ? 'border-[hsl(350,70%,70%)] bg-[hsl(350,100%,97%)] text-[hsl(350,50%,40%)]' : 'border-[hsl(160,50%,55%)] bg-[hsl(160,50%,97%)] text-[hsl(160,45%,35%)]') : ''}
               ${status === 'wrong' ? 'border-[hsl(350,80%,70%)] bg-[hsl(350,80%,98%)] text-[hsl(350,70%,40%)]' : ''}`}
-                        placeholder={articlePlaceholder}
+                        placeholder="Wpisz odpowiedź..."
                         autoComplete="off"
                     />
 
@@ -338,7 +363,13 @@ export default function GuessObjectStudyPage() {
                             <p className={`text-sm mb-1 ${isHK ? 'text-[hsl(350,60%,55%)]' : 'text-[hsl(160,40%,45%)]'}`}>
                                 {isHK ? '💖 Kawaii!' : '✓ Doskonale!'}
                             </p>
-                            <p className={`text-lg font-semibold ${isHK ? 'text-[hsl(350,50%,40%)]' : 'text-[hsl(160,45%,35%)]'}`}>{currentItem.answer_fr}</p>
+                            <p className={`text-lg font-semibold ${isHK ? 'text-[hsl(350,50%,40%)]' : 'text-[hsl(160,45%,35%)]'}`}>{currentItem.answer}</p>
+                            {currentItem.full_sentence && (
+                                <p className={`text-sm mt-2 ${colors.textMuted}`}>{currentItem.full_sentence}</p>
+                            )}
+                            {currentItem.sentence_pl && (
+                                <p className={`text-xs mt-1 text-muted-foreground opacity-70`}>{currentItem.sentence_pl}</p>
+                            )}
                         </div>
                     )}
 
@@ -346,9 +377,15 @@ export default function GuessObjectStudyPage() {
                         <div className="space-y-4 animate-slide-up">
                             <div className="text-center">
                                 <p className="text-sm text-[hsl(350,60%,50%)] mb-1">Poprawna odpowiedź:</p>
-                                <p className="text-lg font-semibold text-[hsl(350,70%,40%)]">{currentItem.answer_fr}</p>
+                                <p className="text-lg font-semibold text-[hsl(350,70%,40%)]">{currentItem.answer}</p>
+                                {currentItem.full_sentence && (
+                                    <p className={`text-sm mt-2 ${colors.textMuted}`}>{currentItem.full_sentence}</p>
+                                )}
                             </div>
-                            <div className="flex justify-center">
+
+                            {/* Reuse AI verification logic directly if possible or skip for now */}
+
+                            <div className="flex gap-3 justify-center">
                                 <Button onClick={handleWrongNext} variant="ghost" className={colors.textMuted}>
                                     Dalej →
                                 </Button>

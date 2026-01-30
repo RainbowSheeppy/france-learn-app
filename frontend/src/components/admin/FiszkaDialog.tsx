@@ -19,9 +19,13 @@ interface FiszkaDialogProps {
     fiszka?: Fiszka | null
     mode: 'create' | 'edit'
     groups?: Group[]
+    labels?: {
+        textFr: string
+        placeholderFr: string
+    }
 }
 
-export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mode, groups = [] }: FiszkaDialogProps) {
+export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mode, groups = [], labels = { textFr: 'Tekst w jęz. obcym', placeholderFr: 'np. Hello/Bonjour' } }: FiszkaDialogProps) {
     const [textPl, setTextPl] = useState(fiszka?.text_pl || '')
     const [textFr, setTextFr] = useState(fiszka?.text_fr || '')
     const [imageUrl, setImageUrl] = useState(fiszka?.image_url || '')
@@ -93,13 +97,13 @@ export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mod
 
                     <div className="space-y-2">
                         <label htmlFor="text_fr" className="text-sm font-medium">
-                            Tekst francuski <span className="text-destructive">*</span>
+                            {labels.textFr} <span className="text-destructive">*</span>
                         </label>
                         <Input
                             id="text_fr"
                             value={textFr}
                             onChange={(e) => setTextFr(e.target.value)}
-                            placeholder="np. Bonjour"
+                            placeholder={labels.placeholderFr}
                             required
                             disabled={loading}
                         />

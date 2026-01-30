@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { useLanguageStore } from '@/store/languageStore'
 import { translatePlFrApi, aiApi, type Group, type TranslateItem, type GeneratedItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -29,6 +30,10 @@ export default function TranslatePlFrAdminPage() {
     const [selectedGroup, setSelectedGroup] = useState<string>('all')
     const [loading, setLoading] = useState(true)
     const [view, setView] = useState<'groups' | 'items'>('groups')
+
+    const { activeLanguage } = useLanguageStore()
+    const langCode = activeLanguage === 'fr' ? 'FR' : 'EN'
+    const langNameCap = activeLanguage === 'fr' ? 'Francuski' : 'Angielski'
 
     // Dialog states
     const [groupDialogOpen, setGroupDialogOpen] = useState(false)
@@ -351,7 +356,7 @@ export default function TranslatePlFrAdminPage() {
                             <ArrowRight className="text-muted-foreground mx-4" />
                             <div className="flex-1 text-right">
                                 <p className="font-semibold text-lg text-blue-600">{item.text_fr}</p>
-                                <p className="text-sm text-muted-foreground">FR</p>
+                                <p className="text-sm text-muted-foreground">{langCode}</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -469,7 +474,7 @@ export default function TranslatePlFrAdminPage() {
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Francuski</Label>
+                                                    <Label className="text-xs text-muted-foreground">{langNameCap}</Label>
                                                     <Input
                                                         value={item.text_fr}
                                                         onChange={(e) => updateGeneratedItem(idx, 'text_fr', e.target.value)}

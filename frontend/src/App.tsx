@@ -21,6 +21,57 @@ import FillBlankDetailsPage from './pages/admin/FillBlankDetailsPage'
 import GuessObjectStudyPage from './pages/student/GuessObjectStudyPage'
 import FillBlankStudyPage from './pages/student/FillBlankStudyPage'
 import ProfilePage from './pages/student/ProfilePage'
+import { useLanguageStore } from './store/languageStore'
+
+// Language-aware wrapper for TranslateStudyPage (PL -> Target Language)
+function TranslatePlToTargetPage() {
+    const { activeLanguage, config } = useLanguageStore()
+    const langName = activeLanguage === 'fr' ? 'Francuski' : 'Angielski'
+    const langNameLower = activeLanguage === 'fr' ? 'francusku' : 'angielsku'
+
+    return (
+        <TranslateStudyPage
+            mode="pl-fr"
+            endpoints={{
+                groups: '/study/translate-pl-fr/groups',
+                session: '/study/translate-pl-fr/session',
+                progress: '/study/translate-pl-fr/progress'
+            }}
+            titles={{
+                page: `Tłumaczenie PL → ${config.code}`,
+                instruction: `Wpisz po ${langNameLower}`,
+                langSource: 'Polski',
+                langTarget: langName
+            }}
+            adminEditRoute="/admin/translate-pl-fr"
+        />
+    )
+}
+
+// Language-aware wrapper for TranslateStudyPage (Target Language -> PL)
+function TranslateTargetToPlPage() {
+    const { activeLanguage, config } = useLanguageStore()
+    const langName = activeLanguage === 'fr' ? 'Francuski' : 'Angielski'
+    const langNameGen = activeLanguage === 'fr' ? 'francuskiego' : 'angielskiego'
+
+    return (
+        <TranslateStudyPage
+            mode="fr-pl"
+            endpoints={{
+                groups: '/study/translate-fr-pl/groups',
+                session: '/study/translate-fr-pl/session',
+                progress: '/study/translate-fr-pl/progress'
+            }}
+            titles={{
+                page: `Tłumaczenie ${config.code} → PL`,
+                instruction: 'Wpisz po polsku',
+                langSource: langName,
+                langTarget: 'Polski'
+            }}
+            adminEditRoute="/admin/translate-fr-pl"
+        />
+    )
+}
 
 function App() {
     return (
@@ -34,40 +85,8 @@ function App() {
                     <Route path="/student/dashboard" element={<StudentDashboard />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/learn/fiszki" element={<StudyPage />} />
-                    <Route path="/learn/translate-pl-fr" element={
-                        <TranslateStudyPage
-                            mode="pl-fr"
-                            endpoints={{
-                                groups: '/study/translate-pl-fr/groups',
-                                session: '/study/translate-pl-fr/session',
-                                progress: '/study/translate-pl-fr/progress'
-                            }}
-                            titles={{
-                                page: 'Tłumaczenie PL → FR',
-                                instruction: 'Wpisz po francusku',
-                                langSource: 'Polski',
-                                langTarget: 'Francuski'
-                            }}
-                            adminEditRoute="/admin/translate-pl-fr"
-                        />
-                    } />
-                    <Route path="/learn/translate-fr-pl" element={
-                        <TranslateStudyPage
-                            mode="fr-pl"
-                            endpoints={{
-                                groups: '/study/translate-fr-pl/groups',
-                                session: '/study/translate-fr-pl/session',
-                                progress: '/study/translate-fr-pl/progress'
-                            }}
-                            titles={{
-                                page: 'Tłumaczenie FR → PL',
-                                instruction: 'Wpisz po polsku',
-                                langSource: 'Francuski',
-                                langTarget: 'Polski'
-                            }}
-                            adminEditRoute="/admin/translate-fr-pl"
-                        />
-                    } />
+                    <Route path="/learn/translate-pl-fr" element={<TranslatePlToTargetPage />} />
+                    <Route path="/learn/translate-fr-pl" element={<TranslateTargetToPlPage />} />
                     <Route path="/learn/guess-object" element={<GuessObjectStudyPage />} />
                     <Route path="/learn/fill-blank" element={<FillBlankStudyPage />} />
                 </Route>

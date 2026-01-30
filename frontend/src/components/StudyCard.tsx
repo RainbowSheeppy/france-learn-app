@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StudyFlashcard } from '../types/study';
 import { normalizeForComparison } from '@/lib/utils';
 import { useThemeStore } from '@/store/themeStore';
+import { useLanguageStore } from '@/store/languageStore';
 
 interface StudyCardProps {
     fiszka: StudyFlashcard;
@@ -16,8 +17,10 @@ export const StudyCard: React.FC<StudyCardProps> = ({ fiszka, onResult, onSkip }
     const [isShaking, setIsShaking] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const theme = useThemeStore((state) => state.theme);
+    const { activeLanguage } = useLanguageStore();
     const isHK = theme === 'hellokitty';
     const isDark = theme === 'dark';
+    const langName = activeLanguage === 'fr' ? 'francuski' : 'angielski';
 
     useEffect(() => {
         setInput('');
@@ -129,7 +132,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ fiszka, onResult, onSkip }
                 <div className="text-center">
                     <h3 className={`text-2xl font-bold ${textPrimary}`}>{fiszka.text_pl}</h3>
                     <p className={`text-sm mt-1 ${textMuted}`}>
-                        {isHK ? '✨ Przetłumacz na francuski ✨' : 'Przetłumacz na francuski'}
+                        {isHK ? `✨ Przetłumacz na ${langName} ✨` : `Przetłumacz na ${langName}`}
                     </p>
                 </div>
 

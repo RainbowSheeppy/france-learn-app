@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLanguageStore } from '@/store/languageStore'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fillBlankApi, type Group, type FillBlankItem, type FillBlankItemCreate, type FillBlankItemUpdate, type GeneratedFillBlankItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,10 @@ export default function FillBlankDetailsPage() {
     const [items, setItems] = useState<FillBlankItem[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+
+    const { activeLanguage } = useLanguageStore()
+    const langLabelUpper = activeLanguage === 'fr' ? 'FR' : 'EN'
+    const langLabelLower = activeLanguage === 'fr' ? 'francuskie' : 'angielskie'
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
@@ -289,6 +294,17 @@ export default function FillBlankDetailsPage() {
                 onSubmit={dialogMode === 'create' ? (handleCreateItem as any) : (handleEditItem as any)}
                 item={editingItem}
                 mode={dialogMode}
+                labels={activeLanguage === 'fr' ? {
+                    sentencePlaceholder: 'Je ___ à Paris depuis 5 ans.',
+                    answerPlaceholder: 'habite',
+                    fullSentencePlaceholder: 'Je habite à Paris depuis 5 ans.',
+                    hintPlaceholder: 'czasownik habiter'
+                } : {
+                    sentencePlaceholder: 'I ___ in Paris for 5 years.',
+                    answerPlaceholder: 'live',
+                    fullSentencePlaceholder: 'I have lived in Paris for 5 years.',
+                    hintPlaceholder: 'verb to live'
+                }}
             />
 
             <DeleteFillBlankItemDialog
@@ -394,7 +410,7 @@ export default function FillBlankDetailsPage() {
                                         <div key={idx} className="flex gap-2 items-start p-3 border rounded-md bg-white">
                                             <div className="grid grid-cols-2 gap-2 flex-1">
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Zdanie z luką (FR)</Label>
+                                                    <Label className="text-xs text-muted-foreground">Zdanie z luką ({langLabelUpper})</Label>
                                                     <Input
                                                         value={item.sentence_with_blank}
                                                         onChange={(e) => updateGeneratedItem(idx, 'sentence_with_blank', e.target.value)}

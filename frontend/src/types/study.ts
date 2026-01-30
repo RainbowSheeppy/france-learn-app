@@ -2,6 +2,7 @@ export interface StudyGroup {
     id: string;
     name: string;
     description?: string;
+    language?: 'fr' | 'en'; // Target language for this group
     total_fiszki?: number; // legacy for fiszki
     learned_fiszki?: number; // legacy for fiszki
     total_items?: number; // for translation modes

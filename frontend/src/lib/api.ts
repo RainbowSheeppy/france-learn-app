@@ -37,6 +37,21 @@ api.interceptors.response.use(
     }
 )
 
+// Language Types
+export type TargetLanguage = 'fr' | 'en'
+
+export interface LanguageConfig {
+    name: string
+    name_en: string
+    code: string
+    flag: string
+}
+
+export interface LanguageResponse {
+    language: TargetLanguage
+    config: LanguageConfig
+}
+
 // API Endpoints Types
 export interface LoginCredentials {
     username: string // email
@@ -61,6 +76,7 @@ export interface Group {
     id: string
     name: string
     description?: string
+    language?: TargetLanguage
     created_at?: string
     updated_at?: string
 }
@@ -68,11 +84,13 @@ export interface Group {
 export interface GroupCreate {
     name: string
     description?: string
+    language?: TargetLanguage
 }
 
 export interface GroupUpdate {
     name?: string;
     description?: string;
+    language?: TargetLanguage;
 }
 
 export interface Fiszka {
@@ -206,8 +224,9 @@ export const authApi = {
 
 // Groups API (Now Fiszki Groups)
 export const groupsApi = {
-    getAll: async (): Promise<Group[]> => {
-        const response = await api.get<Group[]>('/fiszki/groups/')
+    getAll: async (language?: TargetLanguage): Promise<Group[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<Group[]>('/fiszki/groups/', { params })
         return response.data
     },
 
@@ -273,8 +292,9 @@ export const fiszkiApi = {
 
 // Translate PL -> FR API
 export const translatePlFrApi = {
-    getGroups: async (): Promise<Group[]> => {
-        const response = await api.get<Group[]>('/translate-pl-fr/groups/')
+    getGroups: async (language?: TargetLanguage): Promise<Group[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<Group[]>('/translate-pl-fr/groups/', { params })
         return response.data
     },
 
@@ -328,8 +348,9 @@ export const translatePlFrApi = {
 
 // Translate FR -> PL API
 export const translateFrPlApi = {
-    getGroups: async (): Promise<Group[]> => {
-        const response = await api.get<Group[]>('/translate-fr-pl/groups/')
+    getGroups: async (language?: TargetLanguage): Promise<Group[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<Group[]>('/translate-fr-pl/groups/', { params })
         return response.data
     },
 
@@ -434,8 +455,9 @@ export interface BatchCreateGuessObject {
 }
 
 export const guessObjectApi = {
-    getGroups: async (): Promise<Group[]> => {
-        const response = await api.get<Group[]>('/guess-object/groups/')
+    getGroups: async (language?: TargetLanguage): Promise<Group[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<Group[]>('/guess-object/groups/', { params })
         return response.data
     },
 
@@ -545,8 +567,9 @@ export interface BatchCreateFillBlank {
 }
 
 export const fillBlankApi = {
-    getGroups: async (): Promise<Group[]> => {
-        const response = await api.get<Group[]>('/fill-blank/groups/')
+    getGroups: async (language?: TargetLanguage): Promise<Group[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<Group[]>('/fill-blank/groups/', { params })
         return response.data
     },
 
@@ -697,4 +720,56 @@ export const adminApi = {
         const response = await api.post<GenerateContentResponse>('/api/admin/generate-initial-content')
         return response.data
     }
+}
+
+// Language API
+export const languageApi = {
+    get: async (): Promise<LanguageResponse> => {
+        const response = await api.get<LanguageResponse>('/user/language')
+        return response.data
+    },
+
+    set: async (language: TargetLanguage): Promise<LanguageResponse> => {
+        const response = await api.post<LanguageResponse>('/user/language', { language })
+        return response.data
+    }
+}
+
+// Study groups with language filter
+export interface StudyGroup extends Group {
+    total_items: number
+    learned_items: number
+    language: TargetLanguage
+}
+
+export const studyApi = {
+    getFiszkiGroups: async (language?: TargetLanguage): Promise<StudyGroup[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<StudyGroup[]>('/study/fiszki/groups', { params })
+        return response.data
+    },
+
+    getTranslatePlFrGroups: async (language?: TargetLanguage): Promise<StudyGroup[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<StudyGroup[]>('/study/translate-pl-fr/groups', { params })
+        return response.data
+    },
+
+    getTranslateFrPlGroups: async (language?: TargetLanguage): Promise<StudyGroup[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<StudyGroup[]>('/study/translate-fr-pl/groups', { params })
+        return response.data
+    },
+
+    getGuessObjectGroups: async (language?: TargetLanguage): Promise<StudyGroup[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<StudyGroup[]>('/study/guess-object/groups', { params })
+        return response.data
+    },
+
+    getFillBlankGroups: async (language?: TargetLanguage): Promise<StudyGroup[]> => {
+        const params = language ? { language } : undefined
+        const response = await api.get<StudyGroup[]>('/study/fill-blank/groups', { params })
+        return response.data
+    },
 }

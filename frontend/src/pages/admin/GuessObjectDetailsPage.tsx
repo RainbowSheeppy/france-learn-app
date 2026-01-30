@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLanguageStore } from '@/store/languageStore'
 import { useParams, useNavigate } from 'react-router-dom'
 import { guessObjectApi, type Group, type GuessObjectItem, type GuessObjectItemCreate, type GuessObjectItemUpdate, type GeneratedGuessObjectItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,10 @@ export default function GuessObjectDetailsPage() {
     const [items, setItems] = useState<GuessObjectItem[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+
+    const { activeLanguage } = useLanguageStore()
+    const langLabelUpper = activeLanguage === 'fr' ? 'FR' : 'EN'
+    const langLabel = activeLanguage === 'fr' ? 'francuskim' : 'angielskim'
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
@@ -227,7 +232,7 @@ export default function GuessObjectDetailsPage() {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                         <HelpCircle className="w-4 h-4 text-amber-600" />
-                                        <p className="text-sm text-muted-foreground">Opis (FR)</p>
+                                        <p className="text-sm text-muted-foreground">Opis ({langLabelUpper})</p>
                                         {item.category && (
                                             <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
                                                 {item.category}
@@ -244,7 +249,7 @@ export default function GuessObjectDetailsPage() {
                                 </div>
                                 <ArrowRight className="text-muted-foreground mx-4 mt-2" />
                                 <div className="flex-1 text-right">
-                                    <p className="text-sm text-muted-foreground mb-1">Odpowiedź (FR)</p>
+                                    <p className="text-sm text-muted-foreground mb-1">Odpowiedź ({langLabelUpper})</p>
                                     <p className="font-semibold text-lg text-amber-600">{item.answer_fr}</p>
                                     {item.answer_pl && (
                                         <p className="text-sm text-gray-500 mt-1">🇵🇱 {item.answer_pl}</p>
@@ -275,6 +280,17 @@ export default function GuessObjectDetailsPage() {
                 onSubmit={dialogMode === 'create' ? (handleCreateItem as any) : (handleEditItem as any)}
                 item={editingItem}
                 mode={dialogMode}
+                labels={activeLanguage === 'fr' ? {
+                    descriptionFr: 'Opis w języku obcym (Pytanie)',
+                    answerFr: 'Odpowiedź (jęz. obcy)',
+                    placeholderDesc: 'C\'est un fruit rouge...',
+                    placeholderAnswer: 'une pomme'
+                } : {
+                    descriptionFr: 'Description in English (Question)',
+                    answerFr: 'Answer (EN)',
+                    placeholderDesc: 'This is a red fruit...',
+                    placeholderAnswer: 'an apple'
+                }}
             />
 
             <DeleteGuessObjectItemDialog
@@ -367,7 +383,7 @@ export default function GuessObjectDetailsPage() {
                                         <div key={idx} className="flex gap-2 items-start p-3 border rounded-md bg-white">
                                             <div className="grid grid-cols-2 gap-2 flex-1">
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Opis (FR)</Label>
+                                                    <Label className="text-xs text-muted-foreground">Opis ({langLabelUpper})</Label>
                                                     <Input
                                                         value={item.description_fr}
                                                         onChange={(e) => updateGeneratedItem(idx, 'description_fr', e.target.value)}
@@ -382,7 +398,7 @@ export default function GuessObjectDetailsPage() {
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Odpowiedź (FR)</Label>
+                                                    <Label className="text-xs text-muted-foreground">Odpowiedź ({langLabelUpper})</Label>
                                                     <Input
                                                         value={item.answer_fr}
                                                         onChange={(e) => updateGeneratedItem(idx, 'answer_fr', e.target.value)}

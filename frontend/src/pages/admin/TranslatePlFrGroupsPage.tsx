@@ -6,9 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, ArrowRight, BookA, GraduationCap } from 'lucide-react'
 import GroupDialog from '@/components/admin/GroupDialog'
 import DeleteGroupDialog from '@/components/admin/DeleteGroupDialog'
+import { useLanguageStore, getTranslateFromPLLabel } from '@/store/languageStore'
 
 export default function TranslatePlFrGroupsPage() {
     const navigate = useNavigate()
+    const { activeLanguage } = useLanguageStore()
     const [groups, setGroups] = useState<Group[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -25,13 +27,13 @@ export default function TranslatePlFrGroupsPage() {
 
     useEffect(() => {
         loadGroups()
-    }, [])
+    }, [activeLanguage])
 
     const loadGroups = async () => {
         try {
             setLoading(true)
             setError('')
-            const data = await translatePlFrApi.getGroups()
+            const data = await translatePlFrApi.getGroups(activeLanguage)
             setGroups(data)
         } catch (err: any) {
             console.error('Error loading groups:', err)
@@ -109,7 +111,7 @@ export default function TranslatePlFrGroupsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                        Tłumaczenie PL → FR
+                        Tłumaczenie {getTranslateFromPLLabel(activeLanguage)}
                     </h1>
                     <p className="text-muted-foreground mt-2">
                         Wybierz grupę zdań do edycji

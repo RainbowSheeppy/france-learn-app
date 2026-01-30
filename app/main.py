@@ -25,6 +25,7 @@ from .auth import (
 )
 from .database import engine, get_session, init_db
 from .models import (
+    TargetLanguage,
     User,
     UserCreate,
     UserRead,
@@ -355,7 +356,7 @@ async def lifespan(app: FastAPI):
     # ============================================================
     # RESET DATABASE ON STARTUP - SET TO False AFTER FIRST DEPLOY
     # ============================================================
-    RESET_DB_ON_STARTUP = False  # <-- Change to False to keep data
+    RESET_DB_ON_STARTUP = True  # <-- Change to False to keep data
     # ============================================================
 
     # ============================================================
@@ -471,13 +472,46 @@ app.add_middleware(
 )
 
 
+# Language Configuration
+LANGUAGE_CONFIG = {
+    TargetLanguage.FR: {
+        "name": "francuski",
+        "name_en": "French",
+        "code": "FR",
+        "flag": "🇫🇷",
+        "expert": "ekspert od języka francuskiego",
+        "wordle_fallback": ["POMME", "LIVRE", "CHIEN", "CHAT", "TABLE", "JOUER", "AIMER", "VIVRE", "ROUGE", "VERTE"],
+        "grammar": "passé composé, subjonctif, imparfait",
+        "direction_from_pl": "PL→FR",
+        "direction_to_pl": "FR→PL",
+    },
+    TargetLanguage.EN: {
+        "name": "angielski",
+        "name_en": "English",
+        "code": "EN",
+        "flag": "🇬🇧",
+        "expert": "ekspert od języka angielskiego",
+        "wordle_fallback": ["APPLE", "HOUSE", "WATER", "LIGHT", "HORSE", "CLOUD", "BREAD", "STONE", "GREEN", "WHITE"],
+        "grammar": "present perfect, past simple, conditionals",
+        "direction_from_pl": "PL→EN",
+        "direction_to_pl": "EN→PL",
+    }
+}
+
+
 # Helper for OpenAI Translation
-def get_translation(text: str, target_lang: str = "francuski") -> str:
+def get_translation(text: str, target_lang: str = "francuski", language: TargetLanguage = TargetLanguage.FR) -> str:
     """Tłumaczy tekst używając OpenAI."""
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        lang_config = LANGUAGE_CONFIG[language]
+        lang_name = lang_config["name"]
+
         # Zoptymalizowany prompt - minimalny format dla oszczędności tokenów
-        prompt = f"PL→FR: {text}" if target_lang == "francuski" else f"FR→PL: {text}"
+        if target_lang == lang_name or target_lang == "target":
+            prompt = f"PL→{lang_config['code']}: {text}"
+        else:
+            prompt = f"{lang_config['code']}→PL: {text}"
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
         return response.output_text.strip()
@@ -487,16 +521,19 @@ def get_translation(text: str, target_lang: str = "francuski") -> str:
 
 
 # Helper for OpenAI AI Generation
-def generate_ai_content(level: str, count: int, category: Optional[str] = None) -> list[dict]:
-    """Generuje pary zdań FR-PL z opcjonalną kategorią."""
+def generate_ai_content(level: str, count: int, category: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje pary zdań z opcjonalną kategorią dla wybranego języka."""
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        lang_config = LANGUAGE_CONFIG[language]
+        lang_name = lang_config["name"]
+        lang_code = lang_config["code"]
 
         category_instructions = {
             "vocabulary": "słownictwo - rzeczowniki, przymiotniki, przysłówki",
             "grammar": "gramatyka - zdania testujące konstrukcje gramatyczne",
             "phrases": "zwroty i wyrażenia - codzienne frazy",
-            "idioms": "idiomy i przysłowia francuskie",
+            "idioms": f"idiomy i przysłowia {lang_name}ie",
             "verbs": "czasowniki - odmiana i użycie",
         }
 
@@ -507,10 +544,11 @@ def generate_ai_content(level: str, count: int, category: Optional[str] = None) 
         elif not category:
             cat_name = "mixed"
 
-        prompt = f"""Wygeneruj {count} par zdań PL-FR na poziomie {level}.
+        prompt = f"""Wygeneruj {count} par zdań PL-{lang_code} na poziomie {level}.
+Język docelowy: {lang_name}.
 {cat_instruction}
 Format JSON (bez dodatkowego tekstu):
-[{{"text_pl": "...", "text_fr": "...", "category": "{cat_name}"}}]"""
+[{{"text_pl": "...", "text_{lang_code.lower()}": "...", "category": "{cat_name}"}}]"""
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
 
@@ -523,7 +561,13 @@ Format JSON (bez dodatkowego tekstu):
         if output_text.endswith("```"):
             output_text = output_text[:-3]
 
-        return json.loads(output_text.strip())
+        # Normalize the response to always use text_fr key for compatibility
+        items = json.loads(output_text.strip())
+        for item in items:
+            # Handle both text_fr and text_en keys, normalize to text_fr
+            if f"text_{lang_code.lower()}" in item and "text_fr" not in item:
+                item["text_fr"] = item[f"text_{lang_code.lower()}"]
+        return items
     except Exception as e:
         print(f"Generation Error: {e}")
         return []
@@ -535,7 +579,7 @@ def generate_sentences_endpoint(request: GenerateRequest, current_user: User = D
     if request.count > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 sentences at once")
 
-    generated_data = generate_ai_content(request.level, request.count, request.category)
+    generated_data = generate_ai_content(request.level, request.count, request.category, current_user.active_language)
 
     # Map to GeneratedItem
     items = []
@@ -553,19 +597,21 @@ def generate_sentences_endpoint(request: GenerateRequest, current_user: User = D
 
 
 # Helper for AI Answer Verification
-def verify_answer_with_ai(question: str, expected_answer: str, user_answer: str, task_type: str) -> dict:
+def verify_answer_with_ai(question: str, expected_answer: str, user_answer: str, task_type: str, language: TargetLanguage = TargetLanguage.FR) -> dict:
     """Weryfikuje odpowiedź użytkownika używając AI."""
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        
+        lang_config = LANGUAGE_CONFIG[language]
+        lang_name = lang_config["name"]
+
         task_descriptions = {
-            "translate_pl_fr": "tłumaczenie z polskiego na francuski",
-            "translate_fr_pl": "tłumaczenie z francuskiego na polski",
-            "fill_blank": "uzupełnienie luki w zdaniu francuskim"
+            "translate_pl_fr": f"tłumaczenie z polskiego na {lang_name}",
+            "translate_fr_pl": f"tłumaczenie z {lang_name}ego na polski",
+            "fill_blank": f"uzupełnienie luki w zdaniu {lang_name}im"
         }
         task_desc = task_descriptions.get(task_type, "zadanie językowe")
-        
-        prompt = f"""Jesteś ekspertem od języka francuskiego. Sprawdź czy odpowiedź użytkownika jest poprawna.
+
+        prompt = f"""Jesteś {lang_config['expert']}. Sprawdź czy odpowiedź użytkownika jest poprawna.
 
 Typ zadania: {task_desc}
 Pytanie/Zdanie: {question}
@@ -583,7 +629,7 @@ Zasady oceny:
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
         output_text = response.output_text.strip()
-        
+
         # Clean up JSON if wrapped in markdown
         if output_text.startswith("```json"):
             output_text = output_text[7:]
@@ -591,7 +637,7 @@ Zasady oceny:
             output_text = output_text[3:]
         if output_text.endswith("```"):
             output_text = output_text[:-3]
-        
+
         return json.loads(output_text.strip())
     except Exception as e:
         print(f"AI Verification Error: {e}")
@@ -715,6 +761,59 @@ def logout():
     return {"message": "Successfully logged out"}
 
 
+# ==========================================
+# User Language Endpoints
+# ==========================================
+
+
+class LanguageRequest(BaseModel):
+    language: TargetLanguage
+
+
+class LanguageResponse(BaseModel):
+    language: TargetLanguage
+    config: dict
+
+
+@app.get("/user/language", response_model=LanguageResponse)
+def get_user_language(current_user: User = Depends(get_current_user)):
+    """Pobiera aktywny język użytkownika."""
+    lang = current_user.active_language
+    return LanguageResponse(
+        language=lang,
+        config={
+            "name": LANGUAGE_CONFIG[lang]["name"],
+            "name_en": LANGUAGE_CONFIG[lang]["name_en"],
+            "code": LANGUAGE_CONFIG[lang]["code"],
+            "flag": LANGUAGE_CONFIG[lang]["flag"],
+        }
+    )
+
+
+@app.post("/user/language", response_model=LanguageResponse)
+def set_user_language(
+    request: LanguageRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Ustawia aktywny język użytkownika."""
+    current_user.active_language = request.language
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+
+    lang = current_user.active_language
+    return LanguageResponse(
+        language=lang,
+        config={
+            "name": LANGUAGE_CONFIG[lang]["name"],
+            "name_en": LANGUAGE_CONFIG[lang]["name_en"],
+            "code": LANGUAGE_CONFIG[lang]["code"],
+            "flag": LANGUAGE_CONFIG[lang]["flag"],
+        }
+    )
+
+
 # Endpointy użytkowników
 @app.post("/users/", response_model=UserRead)
 def create_user(user: UserCreate, session: Session = Depends(get_session)):
@@ -745,9 +844,15 @@ def get_users(
 
 
 @app.get("/fiszki/groups/", response_model=list[FiszkiGroupRead])
-def get_fiszki_groups(session: Session = Depends(get_session)):
-    """Pobierz listę wszystkich grup fiszek"""
-    groups = session.exec(select(FiszkiGroup)).all()
+def get_fiszki_groups(
+    session: Session = Depends(get_session),
+    language: Optional[TargetLanguage] = None,
+):
+    """Pobierz listę grup fiszek, opcjonalnie filtrowanych po języku"""
+    query = select(FiszkiGroup)
+    if language:
+        query = query.where(FiszkiGroup.language == language)
+    groups = session.exec(query).all()
     return groups
 
 
@@ -902,8 +1007,15 @@ async def import_fiszki(
 
 
 @app.get("/translate-pl-fr/groups/", response_model=list[TranslatePlFrGroupRead])
-def get_pl_fr_groups(session: Session = Depends(get_session)):
-    return session.exec(select(TranslatePlFrGroup)).all()
+def get_pl_fr_groups(
+    session: Session = Depends(get_session),
+    language: Optional[TargetLanguage] = None,
+):
+    """Pobierz listę grup tłumaczeń PL->FR, opcjonalnie filtrowanych po języku"""
+    query = select(TranslatePlFrGroup)
+    if language:
+        query = query.where(TranslatePlFrGroup.language == language)
+    return session.exec(query).all()
 
 
 @app.post("/translate-pl-fr/groups/", response_model=TranslatePlFrGroupRead)
@@ -1098,8 +1210,15 @@ def batch_create_pl_fr_items(
 
 
 @app.get("/translate-fr-pl/groups/", response_model=list[TranslateFrPlGroupRead])
-def get_fr_pl_groups(session: Session = Depends(get_session)):
-    return session.exec(select(TranslateFrPlGroup)).all()
+def get_fr_pl_groups(
+    session: Session = Depends(get_session),
+    language: Optional[TargetLanguage] = None,
+):
+    """Pobierz listę grup tłumaczeń FR->PL, opcjonalnie filtrowanych po języku"""
+    query = select(TranslateFrPlGroup)
+    if language:
+        query = query.where(TranslateFrPlGroup.language == language)
+    return session.exec(query).all()
 
 
 @app.post("/translate-fr-pl/groups/", response_model=TranslateFrPlGroupRead)
@@ -1296,8 +1415,11 @@ def batch_create_fr_pl_items(
 def get_study_fiszki_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    language: Optional[TargetLanguage] = None,
 ):
-    groups = session.exec(select(FiszkiGroup)).all()
+    # Filter by language - use user's active language if not specified
+    active_lang = language or current_user.active_language
+    groups = session.exec(select(FiszkiGroup).where(FiszkiGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
         total = session.exec(select(func.count(Fiszka.id)).where(Fiszka.group_id == group.id)).one()
@@ -1311,7 +1433,7 @@ def get_study_fiszki_groups(
 
         study_groups.append(
             GroupStudyRead(
-                id=group.id, name=group.name, description=group.description, total_items=total, learned_items=learned, updated_at=group.updated_at
+                id=group.id, name=group.name, description=group.description, language=group.language, total_items=total, learned_items=learned, updated_at=group.updated_at
             )
         )
     return study_groups
@@ -1376,13 +1498,16 @@ def update_fiszka_progress(
     return {"message": "Progress updated"}
 
 
-# Translate PL -> FR Study
+# Translate PL -> Target Language Study
 @app.get("/study/translate-pl-fr/groups", response_model=list[GroupStudyRead])
 def get_study_pl_fr_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    language: Optional[TargetLanguage] = None,
 ):
-    groups = session.exec(select(TranslatePlFrGroup)).all()
+    # Filter by language - use user's active language if not specified
+    active_lang = language or current_user.active_language
+    groups = session.exec(select(TranslatePlFrGroup).where(TranslatePlFrGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
         total = session.exec(select(func.count(TranslatePlFr.id)).where(TranslatePlFr.group_id == group.id)).one()
@@ -1396,7 +1521,7 @@ def get_study_pl_fr_groups(
 
         study_groups.append(
             GroupStudyRead(
-                id=group.id, name=group.name, description=group.description, total_items=total, learned_items=learned, updated_at=group.updated_at
+                id=group.id, name=group.name, description=group.description, language=group.language, total_items=total, learned_items=learned, updated_at=group.updated_at
             )
         )
     return study_groups
@@ -1460,13 +1585,16 @@ def update_pl_fr_progress(
     return {"message": "Progress updated"}
 
 
-# Translate FR -> PL Study
+# Translate Target Language -> PL Study
 @app.get("/study/translate-fr-pl/groups", response_model=list[GroupStudyRead])
 def get_study_fr_pl_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    language: Optional[TargetLanguage] = None,
 ):
-    groups = session.exec(select(TranslateFrPlGroup)).all()
+    # Filter by language - use user's active language if not specified
+    active_lang = language or current_user.active_language
+    groups = session.exec(select(TranslateFrPlGroup).where(TranslateFrPlGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
         total = session.exec(select(func.count(TranslateFrPl.id)).where(TranslateFrPl.group_id == group.id)).one()
@@ -1480,7 +1608,7 @@ def get_study_fr_pl_groups(
 
         study_groups.append(
             GroupStudyRead(
-                id=group.id, name=group.name, description=group.description, total_items=total, learned_items=learned, updated_at=group.updated_at
+                id=group.id, name=group.name, description=group.description, language=group.language, total_items=total, learned_items=learned, updated_at=group.updated_at
             )
         )
     return study_groups
@@ -1550,8 +1678,15 @@ def update_fr_pl_progress(
 
 
 @app.get("/guess-object/groups/", response_model=list[GuessObjectGroupRead])
-def get_guess_object_groups(session: Session = Depends(get_session)):
-    return session.exec(select(GuessObjectGroup)).all()
+def get_guess_object_groups(
+    session: Session = Depends(get_session),
+    language: Optional[TargetLanguage] = None,
+):
+    """Pobierz listę grup zgadnij przedmiot, opcjonalnie filtrowanych po języku"""
+    query = select(GuessObjectGroup)
+    if language:
+        query = query.where(GuessObjectGroup.language == language)
+    return session.exec(query).all()
 
 
 @app.post("/guess-object/groups/", response_model=GuessObjectGroupRead)
@@ -1714,10 +1849,13 @@ async def import_guess_object(
 
 
 # AI Generation for Guess Object
-def generate_guess_object_ai_content(level: str, count: int) -> list[dict]:
-    """Generuje zagadki słowne po francusku z polskimi tłumaczeniami."""
+def generate_guess_object_ai_content(level: str, count: int, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje zagadki słowne w wybranym języku z polskimi tłumaczeniami."""
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        lang_config = LANGUAGE_CONFIG[language]
+        lang_name = lang_config["name"]
+        lang_code = lang_config["code"]
 
         level_instructions = {
             "A1": "proste przedmioty (owoce, zwierzęta, meble, ubrania), krótkie opisy 1-2 zdania, używaj prostych słów",
@@ -1730,17 +1868,24 @@ def generate_guess_object_ai_content(level: str, count: int) -> list[dict]:
 
         instruction = level_instructions.get(level, level_instructions["B1"])
 
-        prompt = f"""Wygeneruj {count} zagadek słownych po francusku na poziomie {level}.
+        # Article instruction based on language
+        article_instruction = ""
+        if language == TargetLanguage.FR:
+            article_instruction = "- Odpowiedź MUSI zawierać rodzajnik (le/la/un/une/l')"
+        elif language == TargetLanguage.EN:
+            article_instruction = "- Odpowiedź MUSI zawierać przedimek (a/an/the) jeśli to wymagane"
+
+        prompt = f"""Wygeneruj {count} zagadek słownych po {lang_name}u na poziomie {level}.
 Cechy:
 - {instruction}
 - Opis powinien dawać wskazówki, ale nie zdradzać odpowiedzi wprost
-- Odpowiedź MUSI zawierać rodzajnik (le/la/un/une/l')
+{article_instruction}
 - Każda zagadka powinna być unikalna
 - Dodaj polskie tłumaczenie opisu i odpowiedzi
 - Określ kategorię przedmiotu (fruits, animals, furniture, tools, transport, food, nature, abstract, profession, instrument)
 
 Format JSON (bez dodatkowego tekstu):
-[{{"description_fr": "opis po francusku", "description_pl": "opis po polsku", "answer_fr": "odpowiedź z rodzajnikiem", "answer_pl": "odpowiedź po polsku", "category": "kategoria"}}]"""
+[{{"description_{lang_code.lower()}": "opis po {lang_name}u", "description_pl": "opis po polsku", "answer_{lang_code.lower()}": "odpowiedź", "answer_pl": "odpowiedź po polsku", "category": "kategoria"}}]"""
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
 
@@ -1750,7 +1895,14 @@ Format JSON (bez dodatkowego tekstu):
         if output_text.endswith("```"):
             output_text = output_text[:-3]
 
-        return json.loads(output_text.strip())
+        # Normalize response keys to description_fr and answer_fr for compatibility
+        items = json.loads(output_text.strip())
+        for item in items:
+            if f"description_{lang_code.lower()}" in item and "description_fr" not in item:
+                item["description_fr"] = item[f"description_{lang_code.lower()}"]
+            if f"answer_{lang_code.lower()}" in item and "answer_fr" not in item:
+                item["answer_fr"] = item[f"answer_{lang_code.lower()}"]
+        return items
     except Exception as e:
         print(f"Guess Object Generation Error: {e}")
         return []
@@ -1763,7 +1915,7 @@ def generate_guess_object_endpoint(
     if request.count > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 items at once")
 
-    generated_data = generate_guess_object_ai_content(request.level, request.count)
+    generated_data = generate_guess_object_ai_content(request.level, request.count, current_user.active_language)
 
     items = []
     for item in generated_data:
@@ -1787,8 +1939,11 @@ def generate_guess_object_endpoint(
 def get_study_guess_object_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    language: Optional[TargetLanguage] = None,
 ):
-    groups = session.exec(select(GuessObjectGroup)).all()
+    # Filter by language - use user's active language if not specified
+    active_lang = language or current_user.active_language
+    groups = session.exec(select(GuessObjectGroup).where(GuessObjectGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
         total = session.exec(select(func.count(GuessObject.id)).where(GuessObject.group_id == group.id)).one()
@@ -1802,7 +1957,7 @@ def get_study_guess_object_groups(
 
         study_groups.append(
             GroupStudyRead(
-                id=group.id, name=group.name, description=group.description, total_items=total, learned_items=learned, updated_at=group.updated_at
+                id=group.id, name=group.name, description=group.description, language=group.language, total_items=total, learned_items=learned, updated_at=group.updated_at
             )
         )
     return study_groups
@@ -1870,8 +2025,15 @@ def update_guess_object_progress(
 
 
 @app.get("/fill-blank/groups/", response_model=list[FillBlankGroupRead])
-def get_fill_blank_groups(session: Session = Depends(get_session)):
-    return session.exec(select(FillBlankGroup)).all()
+def get_fill_blank_groups(
+    session: Session = Depends(get_session),
+    language: Optional[TargetLanguage] = None,
+):
+    """Pobierz listę grup uzupełnij lukę, opcjonalnie filtrowanych po języku"""
+    query = select(FillBlankGroup)
+    if language:
+        query = query.where(FillBlankGroup.language == language)
+    return session.exec(query).all()
 
 
 @app.post("/fill-blank/groups/", response_model=FillBlankGroupRead)
@@ -2039,24 +2201,24 @@ async def import_fill_blank(
 
 
 # AI Generation for Fill Blank
-def generate_fill_blank_ai_content(level: str, count: int, grammar_focus: Optional[str] = None) -> list[dict]:
-    """Generuje ćwiczenia z lukami po francusku z polskimi tłumaczeniami."""
+def generate_fill_blank_ai_content(level: str, count: int, grammar_focus: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje ćwiczenia z lukami w wybranym języku z polskimi tłumaczeniami."""
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        lang_config = LANGUAGE_CONFIG[language]
+        lang_name = lang_config["name"]
+        lang_code = lang_config["code"]
 
-        level_grammar = {
-            "A1": "czasowniki w présent (être, avoir, regularne -er), rodzajniki (le/la/un/une), podstawowe przyimki (à, de, dans)",
-            "A2": "passé composé, rodzajniki cząstkowe (du/de la/des), przyimki miejsca (sur, sous, devant)",
-            "B1": "imparfait vs passé composé, zaimki y/en, przyimki z krajami (en/au/aux)",
-            "B2": "subjonctif présent, zaimki względne (qui/que/dont/où), zgodność participe passé",
-            "C1": "wszystkie czasy, subjonctif passé, zaimki złożone, idiomy",
-            "C2": "niuanse stylistyczne, wyrażenia literackie, zaawansowana składnia",
-        }
-
-        grammar_instruction = level_grammar.get(level, level_grammar["B1"])
-
-        focus_instruction = ""
-        if grammar_focus:
+        # Language-specific grammar focus
+        if language == TargetLanguage.FR:
+            level_grammar = {
+                "A1": "czasowniki w présent (être, avoir, regularne -er), rodzajniki (le/la/un/une), podstawowe przyimki (à, de, dans)",
+                "A2": "passé composé, rodzajniki cząstkowe (du/de la/des), przyimki miejsca (sur, sous, devant)",
+                "B1": "imparfait vs passé composé, zaimki y/en, przyimki z krajami (en/au/aux)",
+                "B2": "subjonctif présent, zaimki względne (qui/que/dont/où), zgodność participe passé",
+                "C1": "wszystkie czasy, subjonctif passé, zaimki złożone, idiomy",
+                "C2": "niuanse stylistyczne, wyrażenia literackie, zaawansowana składnia",
+            }
             focus_map = {
                 "verb": "Skup się na czasownikach i ich odmianach.",
                 "article": "Skup się na rodzajnikach (le/la/un/une/du/de la/des).",
@@ -2064,9 +2226,30 @@ def generate_fill_blank_ai_content(level: str, count: int, grammar_focus: Option
                 "pronoun": "Skup się na zaimkach (y, en, zaimki względne).",
                 "agreement": "Skup się na zgodności (rodzaj, liczba, participe passé).",
             }
+        else:  # EN
+            level_grammar = {
+                "A1": "czasowniki w present simple (be, have, regularne), przedimki (a/an/the), podstawowe przyimki (in, on, at)",
+                "A2": "past simple, present continuous, przedimki z rzeczownikami policzalnymi i niepoliczalnymi",
+                "B1": "present perfect vs past simple, czasowniki modalne (can/could/may/might)",
+                "B2": "passive voice, zdania warunkowe (conditionals I, II, III), reported speech",
+                "C1": "wszystkie czasy, inwersja, zaawansowane struktury zdaniowe",
+                "C2": "niuanse stylistyczne, wyrażenia idiomatyczne, zaawansowana składnia",
+            }
+            focus_map = {
+                "verb": "Skup się na czasownikach i ich formach (tenses).",
+                "article": "Skup się na przedimkach (a/an/the/some/any).",
+                "preposition": "Skup się na przyimkach.",
+                "pronoun": "Skup się na zaimkach (relative, reflexive).",
+                "agreement": "Skup się na zgodności (subject-verb agreement, singular/plural).",
+            }
+
+        grammar_instruction = level_grammar.get(level, level_grammar["B1"])
+
+        focus_instruction = ""
+        if grammar_focus:
             focus_instruction = focus_map.get(grammar_focus, "")
 
-        prompt = f"""Wygeneruj {count} ćwiczeń "uzupełnij lukę" po francusku na poziomie {level}.
+        prompt = f"""Wygeneruj {count} ćwiczeń "uzupełnij lukę" po {lang_name}u na poziomie {level}.
 
 Wytyczne dla poziomu {level}: {grammar_instruction}
 {focus_instruction}
@@ -2075,12 +2258,12 @@ Zasady:
 - Luka oznaczona jako ___ (trzy podkreślniki)
 - Każda luka testuje konkretną wiedzę gramatyczną, NIE losowe słowo
 - Odpowiedź musi być jednoznaczna
-- Hint naprowadza na kategorię gramatyczną (np. "czasownik être", "rodzajnik określony")
+- Hint naprowadza na kategorię gramatyczną
 - grammar_focus: verb | article | preposition | pronoun | agreement
 - Dodaj polskie tłumaczenie pełnego zdania (sentence_pl)
 
 Format JSON (bez dodatkowego tekstu):
-[{{"sentence_with_blank": "zdanie z ___", "sentence_pl": "polskie tłumaczenie", "answer": "odpowiedź", "full_sentence": "pełne zdanie FR", "hint": "podpowiedź", "grammar_focus": "kategoria"}}]"""
+[{{"sentence_with_blank": "zdanie z ___", "sentence_pl": "polskie tłumaczenie", "answer": "odpowiedź", "full_sentence": "pełne zdanie", "hint": "podpowiedź", "grammar_focus": "kategoria"}}]"""
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
 
@@ -2103,7 +2286,7 @@ def generate_fill_blank_endpoint(
     if request.count > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 items at once")
 
-    generated_data = generate_fill_blank_ai_content(request.level, request.count, request.grammar_focus)
+    generated_data = generate_fill_blank_ai_content(request.level, request.count, request.grammar_focus, current_user.active_language)
 
     items = []
     for item in generated_data:
@@ -2127,8 +2310,11 @@ def generate_fill_blank_endpoint(
 def get_study_fill_blank_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    language: Optional[TargetLanguage] = None,
 ):
-    groups = session.exec(select(FillBlankGroup)).all()
+    # Filter by language - use user's active language if not specified
+    active_lang = language or current_user.active_language
+    groups = session.exec(select(FillBlankGroup).where(FillBlankGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
         total = session.exec(select(func.count(FillBlank.id)).where(FillBlank.group_id == group.id)).one()
@@ -2142,7 +2328,7 @@ def get_study_fill_blank_groups(
 
         study_groups.append(
             GroupStudyRead(
-                id=group.id, name=group.name, description=group.description, total_items=total, learned_items=learned, updated_at=group.updated_at
+                id=group.id, name=group.name, description=group.description, language=group.language, total_items=total, learned_items=learned, updated_at=group.updated_at
             )
         )
     return study_groups
@@ -2261,12 +2447,18 @@ def calculate_score_endpoint(
 
 class WordleStartResponse(BaseModel):
     target_word: str
+    language: TargetLanguage
 
 
 @app.post("/minigame/wordle/start", response_model=WordleStartResponse)
-def start_wordle(level: Optional[str] = "A1"):
-    word = generate_wordle_word(level)
-    return {"target_word": word}
+def start_wordle(
+    level: Optional[str] = "A1",
+    current_user: User = Depends(get_current_user),
+):
+    # Use user's active language for Wordle
+    language = current_user.active_language
+    word = generate_wordle_word(level, language)
+    return {"target_word": word, "language": language}
 
 
 class WordleCheckRequest(BaseModel):
@@ -2361,46 +2553,82 @@ def get_dashboard_stats(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Get comprehensive dashboard statistics for the current user."""
+    """Get comprehensive dashboard statistics for the current user, filtered by active language."""
+    active_lang = current_user.active_language
 
-    # Fiszki stats
-    fiszki_total = session.exec(select(func.count(Fiszka.id))).one()
+    # Fiszki stats - filter by language
+    fiszki_total = session.exec(
+        select(func.count(Fiszka.id))
+        .join(FiszkiGroup, Fiszka.group_id == FiszkiGroup.id)
+        .where(FiszkiGroup.language == active_lang)
+    ).one()
     fiszki_learned = session.exec(
         select(func.count(FiszkaProgress.fiszka_id))
+        .join(Fiszka, FiszkaProgress.fiszka_id == Fiszka.id)
+        .join(FiszkiGroup, Fiszka.group_id == FiszkiGroup.id)
         .where(FiszkaProgress.user_id == current_user.id)
         .where(FiszkaProgress.learned == True)
+        .where(FiszkiGroup.language == active_lang)
     ).one()
 
-    # Translate PL->FR stats
-    pl_fr_total = session.exec(select(func.count(TranslatePlFr.id))).one()
+    # Translate PL->FR stats - filter by language
+    pl_fr_total = session.exec(
+        select(func.count(TranslatePlFr.id))
+        .join(TranslatePlFrGroup, TranslatePlFr.group_id == TranslatePlFrGroup.id)
+        .where(TranslatePlFrGroup.language == active_lang)
+    ).one()
     pl_fr_learned = session.exec(
         select(func.count(TranslatePlFrProgress.item_id))
+        .join(TranslatePlFr, TranslatePlFrProgress.item_id == TranslatePlFr.id)
+        .join(TranslatePlFrGroup, TranslatePlFr.group_id == TranslatePlFrGroup.id)
         .where(TranslatePlFrProgress.user_id == current_user.id)
         .where(TranslatePlFrProgress.learned == True)
+        .where(TranslatePlFrGroup.language == active_lang)
     ).one()
 
-    # Translate FR->PL stats
-    fr_pl_total = session.exec(select(func.count(TranslateFrPl.id))).one()
+    # Translate FR->PL stats - filter by language
+    fr_pl_total = session.exec(
+        select(func.count(TranslateFrPl.id))
+        .join(TranslateFrPlGroup, TranslateFrPl.group_id == TranslateFrPlGroup.id)
+        .where(TranslateFrPlGroup.language == active_lang)
+    ).one()
     fr_pl_learned = session.exec(
         select(func.count(TranslateFrPlProgress.item_id))
+        .join(TranslateFrPl, TranslateFrPlProgress.item_id == TranslateFrPl.id)
+        .join(TranslateFrPlGroup, TranslateFrPl.group_id == TranslateFrPlGroup.id)
         .where(TranslateFrPlProgress.user_id == current_user.id)
         .where(TranslateFrPlProgress.learned == True)
+        .where(TranslateFrPlGroup.language == active_lang)
     ).one()
 
-    # Guess Object stats
-    guess_total = session.exec(select(func.count(GuessObject.id))).one()
+    # Guess Object stats - filter by language
+    guess_total = session.exec(
+        select(func.count(GuessObject.id))
+        .join(GuessObjectGroup, GuessObject.group_id == GuessObjectGroup.id)
+        .where(GuessObjectGroup.language == active_lang)
+    ).one()
     guess_learned = session.exec(
         select(func.count(GuessObjectProgress.item_id))
+        .join(GuessObject, GuessObjectProgress.item_id == GuessObject.id)
+        .join(GuessObjectGroup, GuessObject.group_id == GuessObjectGroup.id)
         .where(GuessObjectProgress.user_id == current_user.id)
         .where(GuessObjectProgress.learned == True)
+        .where(GuessObjectGroup.language == active_lang)
     ).one()
 
-    # Fill Blank stats
-    fill_total = session.exec(select(func.count(FillBlank.id))).one()
+    # Fill Blank stats - filter by language
+    fill_total = session.exec(
+        select(func.count(FillBlank.id))
+        .join(FillBlankGroup, FillBlank.group_id == FillBlankGroup.id)
+        .where(FillBlankGroup.language == active_lang)
+    ).one()
     fill_learned = session.exec(
         select(func.count(FillBlankProgress.item_id))
+        .join(FillBlank, FillBlankProgress.item_id == FillBlank.id)
+        .join(FillBlankGroup, FillBlank.group_id == FillBlankGroup.id)
         .where(FillBlankProgress.user_id == current_user.id)
         .where(FillBlankProgress.learned == True)
+        .where(FillBlankGroup.language == active_lang)
     ).one()
 
     total_learned = fiszki_learned + pl_fr_learned + fr_pl_learned + guess_learned + fill_learned
@@ -2637,4 +2865,5 @@ Format JSON:
         groups_created=groups_created,
         items_created=items_created
     )
+
 

@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { useLanguageStore } from '@/store/languageStore'
 import { translateFrPlApi, aiApi, type Group, type TranslateItem, type GeneratedItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -28,6 +29,10 @@ export default function TranslateFrPlAdminPage() {
     const [selectedGroup, setSelectedGroup] = useState<string>('all')
     const [loading, setLoading] = useState(true)
     const [view, setView] = useState<'groups' | 'items'>('groups')
+
+    const { activeLanguage } = useLanguageStore()
+    const langCode = activeLanguage === 'fr' ? 'FR' : 'EN'
+    const langNameCap = activeLanguage === 'fr' ? 'Francuski' : 'Angielski'
 
     // Dialog states
     const [groupDialogOpen, setGroupDialogOpen] = useState(false)
@@ -328,7 +333,7 @@ export default function TranslateFrPlAdminPage() {
                         <CardContent className="flex justify-between items-center p-4">
                             <div className="flex-1">
                                 <p className="font-semibold text-lg">{item.text_fr}</p>
-                                <p className="text-sm text-muted-foreground">FR (Pytanie)</p>
+                                <p className="text-sm text-muted-foreground">{langCode} (Pytanie)</p>
                             </div>
                             <ArrowRight className="text-muted-foreground mx-4" />
                             <div className="flex-1 text-right">
@@ -449,7 +454,7 @@ export default function TranslateFrPlAdminPage() {
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Francuski</Label>
+                                                    <Label className="text-xs text-muted-foreground">{langNameCap}</Label>
                                                     <Input
                                                         value={item.text_fr}
                                                         onChange={(e) => updateGeneratedItem(idx, 'text_fr', e.target.value)}

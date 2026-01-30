@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { useLanguageStore } from '@/store/languageStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,73 +11,76 @@ import {
 import { WordleModal } from '@/components/WordleModal';
 import { wordleApi, adminApi } from '@/lib/api';
 
-const managementSections = [
-    {
-        title: 'Zarządzanie treścią',
-        items: [
-            {
-                id: 'groups',
-                title: 'Grupy Fiszek',
-                description: 'Zarządzaj grupami i fiszkami',
-                icon: Folder,
-                path: '/admin/groups',
-                color: 'bg-gradient-to-br from-[hsl(16,90%,60%)] to-[hsl(16,85%,50%)]',
-            },
-            {
-                id: 'translate-pl-fr',
-                title: 'Tłumaczenia PL → FR',
-                description: 'Grupy tłumaczeń polski-francuski',
-                icon: Languages,
-                path: '/admin/translate-pl-fr',
-                color: 'bg-gradient-to-br from-[hsl(260,60%,60%)] to-[hsl(260,50%,50%)]',
-            },
-            {
-                id: 'translate-fr-pl',
-                title: 'Tłumaczenia FR → PL',
-                description: 'Grupy tłumaczeń francuski-polski',
-                icon: MessageSquare,
-                path: '/admin/translate-fr-pl',
-                color: 'bg-gradient-to-br from-[hsl(180,50%,50%)] to-[hsl(180,45%,40%)]',
-            },
-            {
-                id: 'guess-object',
-                title: 'Zgadnij przedmiot',
-                description: 'Grupy zagadek słownych',
-                icon: HelpCircle,
-                path: '/admin/guess-object',
-                color: 'bg-gradient-to-br from-[hsl(45,90%,55%)] to-[hsl(30,85%,50%)]',
-            },
-            {
-                id: 'fill-blank',
-                title: 'Uzupełnij zdanie',
-                description: 'Grupy ćwiczeń z lukami',
-                icon: TextCursorInput,
-                path: '/admin/fill-blank',
-                color: 'bg-gradient-to-br from-[hsl(160,50%,50%)] to-[hsl(160,45%,40%)]',
-            },
-        ],
-    },
-];
-
-const quickActions = [
-    {
-        id: 'study-mode',
-        title: 'Tryb nauki',
-        description: 'Przejdź do widoku ucznia',
-        icon: BookOpen,
-        path: '/student/dashboard',
-        variant: 'outline' as const,
-    },
-];
-
 export default function AdminDashboard() {
     const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
+    const { activeLanguage } = useLanguageStore();
     const [showWordle, setShowWordle] = useState(false);
     const [wordleTarget, setWordleTarget] = useState("");
     const [generating, setGenerating] = useState(false);
     const [generateMessage, setGenerateMessage] = useState<string | null>(null);
 
+    const langName = activeLanguage === 'fr' ? 'francuski' : 'angielski';
+    const langNameGen = activeLanguage === 'fr' ? 'francuskiego' : 'angielskiego';
+
+    const managementSections = [
+        {
+            title: 'Zarządzanie treścią',
+            items: [
+                {
+                    id: 'groups',
+                    title: 'Grupy Fiszek',
+                    description: 'Zarządzaj grupami i fiszkami',
+                    icon: Folder,
+                    path: '/admin/groups',
+                    color: 'bg-gradient-to-br from-[hsl(16,90%,60%)] to-[hsl(16,85%,50%)]',
+                },
+                {
+                    id: 'translate-pl-fr',
+                    title: `Tłumaczenia PL → ${activeLanguage === 'fr' ? 'FR' : 'EN'}`,
+                    description: `Grupy tłumaczeń polski-${langName}`,
+                    icon: Languages,
+                    path: '/admin/translate-pl-fr',
+                    color: 'bg-gradient-to-br from-[hsl(260,60%,60%)] to-[hsl(260,50%,50%)]',
+                },
+                {
+                    id: 'translate-fr-pl',
+                    title: `Tłumaczenia ${activeLanguage === 'fr' ? 'FR' : 'EN'} → PL`,
+                    description: `Grupy tłumaczeń ${langName}-polski`,
+                    icon: MessageSquare,
+                    path: '/admin/translate-fr-pl',
+                    color: 'bg-gradient-to-br from-[hsl(180,50%,50%)] to-[hsl(180,45%,40%)]',
+                },
+                {
+                    id: 'guess-object',
+                    title: 'Zgadnij przedmiot',
+                    description: 'Grupy zagadek słownych',
+                    icon: HelpCircle,
+                    path: '/admin/guess-object',
+                    color: 'bg-gradient-to-br from-[hsl(45,90%,55%)] to-[hsl(30,85%,50%)]',
+                },
+                {
+                    id: 'fill-blank',
+                    title: 'Uzupełnij zdanie',
+                    description: 'Grupy ćwiczeń z lukami',
+                    icon: TextCursorInput,
+                    path: '/admin/fill-blank',
+                    color: 'bg-gradient-to-br from-[hsl(160,50%,50%)] to-[hsl(160,45%,40%)]',
+                },
+            ],
+        },
+    ];
+
+    const quickActions = [
+        {
+            id: 'study-mode',
+            title: 'Tryb nauki',
+            description: 'Przejdź do widoku ucznia',
+            icon: BookOpen,
+            path: '/student/dashboard',
+            variant: 'outline' as const,
+        },
+    ];
     const handleGenerateContent = async () => {
         if (generating) return;
         setGenerating(true);

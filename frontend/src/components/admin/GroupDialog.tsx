@@ -19,15 +19,24 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
-import type { Group, GroupCreate, GroupUpdate } from '@/lib/api'
+import type { Group, GroupCreate, GroupUpdate, TargetLanguage } from '@/lib/api'
+import { useLanguageStore } from '@/store/languageStore'
 
 const formSchema = z.object({
     name: z.string().min(1, 'Nazwa jest wymagana').max(100, 'Nazwa jest zbyt długa'),
     description: z.string().max(500, 'Opis jest zbyt długi').optional(),
+    language: z.enum(['fr', 'en']).optional(),
 })
 
 interface GroupDialogProps {
@@ -36,6 +45,7 @@ interface GroupDialogProps {
     onSubmit: (data: GroupCreate | GroupUpdate) => Promise<void>
     group: Group | null
     mode: 'create' | 'edit'
+    showLanguageSelect?: boolean
 }
 
 export default function GroupDialog({
@@ -44,14 +54,17 @@ export default function GroupDialog({
     onSubmit,
     group,
     mode,
+    showLanguageSelect = true,
 }: GroupDialogProps) {
     const [loading, setLoading] = useState(false)
+    const { activeLanguage } = useLanguageStore()
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             name: '',
             description: '',
+            language: activeLanguage,
         },
     })
 
@@ -60,14 +73,16 @@ export default function GroupDialog({
             form.reset({
                 name: group.name,
                 description: group.description || '',
+                language: group.language || activeLanguage,
             })
         } else {
             form.reset({
                 name: '',
                 description: '',
+                language: activeLanguage,
             })
         }
-    }, [group, mode, form, open])
+    }, [group, mode, form, open, activeLanguage])
 
     const handleSubmit = async (values: z.infer<typeof formSchema>) => {
         try {
@@ -129,6 +144,42 @@ export default function GroupDialog({
                                 </FormItem>
                             )}
                         />
+
+                        {showLanguageSelect && (
+                            <FormField
+                                control={form.control}
+                                name="language"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Język</FormLabel>
+                                        <Select
+                                            onValueChange={field.onChange}
+                                            defaultValue={field.value}
+                                            value={field.value}
+                                        >
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Wybierz język" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="fr">
+                                                    <span className="flex items-center gap-2">
+                                                        <span>🇫🇷</span> Francuski
+                                                    </span>
+                                                </SelectItem>
+                                                <SelectItem value="en">
+                                                    <span className="flex items-center gap-2">
+                                                        <span>🇬🇧</span> Angielski
+                                                    </span>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
 
                         <DialogFooter>
                             <Button

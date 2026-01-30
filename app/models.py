@@ -1,10 +1,16 @@
 import datetime
 import uuid
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel, Relationship
+
+
+class TargetLanguage(str, Enum):
+    FR = "fr"
+    EN = "en"
 
 
 class BaseModel(SQLModel):
@@ -24,6 +30,7 @@ class User(BaseModel, BaseUser, table=True):
     total_points: int = Field(default=0)
     current_streak: int = Field(default=0)
     highest_combo: int = Field(default=0)
+    active_language: TargetLanguage = Field(default=TargetLanguage.FR)
 
 
 class UserCreate(BaseUser):
@@ -47,6 +54,7 @@ class TokenData(PydanticBaseModel):
 class FiszkiGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
+    language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
 class FiszkiGroup(BaseModel, FiszkiGroupBase, table=True):
@@ -67,6 +75,7 @@ class FiszkiGroupRead(BaseModel, FiszkiGroupBase):
 class FiszkiGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    language: Optional[TargetLanguage] = None
 
 
 # Fiszka Models
@@ -122,6 +131,7 @@ class FiszkaProgress(BaseModel, BaseLearningProgress, table=True):
 class TranslatePlFrGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
+    language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
 class TranslatePlFrGroup(BaseModel, TranslatePlFrGroupBase, table=True):
@@ -142,6 +152,7 @@ class TranslatePlFrGroupRead(BaseModel, TranslatePlFrGroupBase):
 class TranslatePlFrGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    language: Optional[TargetLanguage] = None
 
 
 class TranslatePlFrBase(SQLModel):
@@ -185,6 +196,7 @@ class TranslatePlFrProgress(BaseModel, BaseLearningProgress, table=True):
 class TranslateFrPlGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
+    language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
 class TranslateFrPlGroup(BaseModel, TranslateFrPlGroupBase, table=True):
@@ -205,6 +217,7 @@ class TranslateFrPlGroupRead(BaseModel, TranslateFrPlGroupBase):
 class TranslateFrPlGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    language: Optional[TargetLanguage] = None
 
 
 class TranslateFrPlBase(SQLModel):
@@ -248,6 +261,7 @@ class GroupStudyRead(BaseModel):
     id: uuid.UUID
     name: str
     description: Optional[str] = None
+    language: TargetLanguage = TargetLanguage.FR
     total_items: int
     learned_items: int
     updated_at: datetime.datetime
@@ -294,6 +308,7 @@ class BatchCreateFrPl(PydanticBaseModel):
 class GuessObjectGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
+    language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
 class GuessObjectGroup(BaseModel, GuessObjectGroupBase, table=True):
@@ -314,6 +329,7 @@ class GuessObjectGroupRead(BaseModel, GuessObjectGroupBase):
 class GuessObjectGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    language: Optional[TargetLanguage] = None
 
 
 class GuessObjectBase(SQLModel):
@@ -385,6 +401,7 @@ class GeneratedGuessObjectItem(PydanticBaseModel):
 class FillBlankGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
+    language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
 class FillBlankGroup(BaseModel, FillBlankGroupBase, table=True):
@@ -405,6 +422,7 @@ class FillBlankGroupRead(BaseModel, FillBlankGroupBase):
 class FillBlankGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    language: Optional[TargetLanguage] = None
 
 
 class FillBlankBase(SQLModel):

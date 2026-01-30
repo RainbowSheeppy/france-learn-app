@@ -18,6 +18,12 @@ interface FillBlankItemDialogProps {
     onSubmit: (data: FillBlankItemCreate | FillBlankItemUpdate) => Promise<void>
     item?: FillBlankItem | null
     mode: 'create' | 'edit'
+    labels?: {
+        sentencePlaceholder: string
+        answerPlaceholder: string
+        fullSentencePlaceholder: string
+        hintPlaceholder: string
+    }
 }
 
 export default function FillBlankItemDialog({
@@ -26,6 +32,12 @@ export default function FillBlankItemDialog({
     onSubmit,
     item,
     mode,
+    labels = {
+        sentencePlaceholder: 'Je ___ à Paris depuis 5 ans.',
+        answerPlaceholder: 'habite',
+        fullSentencePlaceholder: 'Je habite à Paris depuis 5 ans.',
+        hintPlaceholder: 'czasownik habiter'
+    }
 }: FillBlankItemDialogProps) {
     const [sentenceWithBlank, setSentenceWithBlank] = useState(item?.sentence_with_blank || '')
     const [sentencePl, setSentencePl] = useState(item?.sentence_pl || '')
@@ -101,7 +113,7 @@ export default function FillBlankItemDialog({
                             id="sentence_with_blank"
                             value={sentenceWithBlank}
                             onChange={(e) => setSentenceWithBlank(e.target.value)}
-                            placeholder="Je ___ à Paris depuis 5 ans."
+                            placeholder={labels.sentencePlaceholder}
                             required
                             disabled={loading}
                         />
@@ -125,7 +137,7 @@ export default function FillBlankItemDialog({
                             id="answer"
                             value={answer}
                             onChange={(e) => setAnswer(e.target.value)}
-                            placeholder="habite"
+                            placeholder={labels.answerPlaceholder}
                             required
                             disabled={loading}
                         />
@@ -137,7 +149,7 @@ export default function FillBlankItemDialog({
                             id="full_sentence"
                             value={fullSentence}
                             onChange={(e) => setFullSentence(e.target.value)}
-                            placeholder="Je habite à Paris depuis 5 ans."
+                            placeholder={labels.fullSentencePlaceholder}
                             disabled={loading}
                         />
                     </div>
@@ -149,7 +161,7 @@ export default function FillBlankItemDialog({
                                 id="hint"
                                 value={hint}
                                 onChange={(e) => setHint(e.target.value)}
-                                placeholder="czasownik habiter"
+                                placeholder={labels.hintPlaceholder}
                                 disabled={loading}
                             />
                         </div>

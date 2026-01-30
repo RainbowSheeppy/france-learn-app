@@ -1,59 +1,66 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { useLanguageStore, getTranslateFromPLLabel, getTranslateToPLLabel, getAppTitle } from '@/store/languageStore';
 import { BookOpen, Languages, MessageSquare, HelpCircle, TextCursorInput, Sparkles, Trophy, Flame, Star, TrendingUp, Award, Info, X } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { dashboardApi, DashboardStats } from '@/lib/api';
-import { getEarnedBadges, getUpcomingBadges, UserStats, Badge } from '@/lib/badges';
+import { getEarnedBadges, getUpcomingBadges, UserStats } from '@/lib/badges';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
-const studyModes = [
-    {
-        id: 'fiszki',
-        title: 'Fiszki',
-        description: 'Ucz się słówek z fiszkami',
-        icon: BookOpen,
-        path: '/learn/fiszki',
-        emoji: '📚',
-        kawaii: '🌸',
-    },
-    {
-        id: 'translate-pl-fr',
-        title: 'PL → FR',
-        description: 'Tłumacz z polskiego na francuski',
-        icon: Languages,
-        path: '/learn/translate-pl-fr',
-        emoji: '🇵🇱➡️🇫🇷',
-        kawaii: '💖',
-    },
-    {
-        id: 'translate-fr-pl',
-        title: 'FR → PL',
-        description: 'Tłumacz z francuskiego na polski',
-        icon: MessageSquare,
-        path: '/learn/translate-fr-pl',
-        emoji: '🇫🇷➡️🇵🇱',
-        kawaii: '🎀',
-    },
-    {
-        id: 'guess-object',
-        title: 'Zgadnij',
-        description: 'Rozpoznaj przedmiot po opisie',
-        icon: HelpCircle,
-        path: '/learn/guess-object',
-        emoji: '🎯',
-        kawaii: '⭐',
-    },
-    {
-        id: 'fill-blank',
-        title: 'Uzupełnij',
-        description: 'Wypełnij luki w zdaniach',
-        icon: TextCursorInput,
-        path: '/learn/fill-blank',
-        emoji: '✏️',
-        kawaii: '🌟',
-    },
-];
+// Study modes are now generated dynamically based on active language
+const getStudyModes = (activeLanguage: 'fr' | 'en') => {
+    const langFlag = activeLanguage === 'fr' ? '🇫🇷' : '🇬🇧';
+    const langCode = activeLanguage.toUpperCase();
+
+    return [
+        {
+            id: 'fiszki',
+            title: 'Fiszki',
+            description: 'Ucz się słówek z fiszkami',
+            icon: BookOpen,
+            path: '/learn/fiszki',
+            emoji: '📚',
+            kawaii: '🌸',
+        },
+        {
+            id: 'translate-pl-fr',
+            title: getTranslateFromPLLabel(activeLanguage),
+            description: `Tłumacz z polskiego na ${activeLanguage === 'fr' ? 'francuski' : 'angielski'}`,
+            icon: Languages,
+            path: '/learn/translate-pl-fr',
+            emoji: `🇵🇱➡️${langFlag}`,
+            kawaii: '💖',
+        },
+        {
+            id: 'translate-fr-pl',
+            title: getTranslateToPLLabel(activeLanguage),
+            description: `Tłumacz z ${activeLanguage === 'fr' ? 'francuskiego' : 'angielskiego'} na polski`,
+            icon: MessageSquare,
+            path: '/learn/translate-fr-pl',
+            emoji: `${langFlag}➡️🇵🇱`,
+            kawaii: '🎀',
+        },
+        {
+            id: 'guess-object',
+            title: 'Zgadnij',
+            description: 'Rozpoznaj przedmiot po opisie',
+            icon: HelpCircle,
+            path: '/learn/guess-object',
+            emoji: '🎯',
+            kawaii: '⭐',
+        },
+        {
+            id: 'fill-blank',
+            title: 'Uzupełnij',
+            description: 'Wypełnij luki w zdaniach',
+            icon: TextCursorInput,
+            path: '/learn/fill-blank',
+            emoji: '✏️',
+            kawaii: '🌟',
+        },
+    ];
+};
 
 // Points Info Modal
 function PointsInfoModal({ isOpen, onClose, isHK, isDark }: { isOpen: boolean; onClose: () => void; isHK: boolean; isDark: boolean }) {
@@ -272,12 +279,16 @@ export default function StudentDashboard() {
     const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
     const theme = useThemeStore((state) => state.theme);
+    const { activeLanguage, config } = useLanguageStore();
     const [showHearts, setShowHearts] = useState(false);
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsLoading, setStatsLoading] = useState(true);
     const [showPointsInfo, setShowPointsInfo] = useState(false);
     const isHelloKitty = theme === 'hellokitty';
     const isDark = theme === 'dark';
+
+    // Get study modes based on active language
+    const studyModes = useMemo(() => getStudyModes(activeLanguage), [activeLanguage]);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -365,7 +376,7 @@ export default function StudentDashboard() {
                     <span className={`text-sm font-medium ${isHelloKitty ? 'hk-text' : 'text-[hsl(220,30%,40%)] dark:text-[hsl(220,20%,70%)]'}`}>
                         {isHelloKitty ? '✨ Kawaii Learning ✨' : '✨ Nauka z pasją ✨'}
                     </span>
-                    <span className="text-lg">{isHelloKitty ? '🎀' : '🇫🇷'}</span>
+                    <span className="text-lg">{isHelloKitty ? '🎀' : config.flag}</span>
                 </div>
 
                 <h1 className={`text-5xl font-bold tracking-tight transition-colors
@@ -382,7 +393,9 @@ export default function StudentDashboard() {
                         : 'text-[hsl(220,20%,45%)] dark:text-[hsl(220,20%,65%)]'
                     }`}>
                     {isHelloKitty
-                        ? 'Wybierz tryb nauki i rozpocznij przygodę z francuskim! 🌸'
+                        ? (activeLanguage === 'fr'
+                            ? 'Wybierz tryb nauki i rozpocznij przygodę z francuskim! 🌸'
+                            : 'Wybierz tryb nauki i rozpocznij przygodę z angielskim! 🌸')
                         : 'Wybierz tryb nauki i rozpocznij naukę'}
                 </p>
             </div>
@@ -623,11 +636,11 @@ export default function StudentDashboard() {
                         ? 'text-[hsl(350,50%,60%)]'
                         : 'text-[hsl(220,20%,55%)] dark:text-[hsl(220,20%,60%)]'
                     }`}>
-                    <span>{isHelloKitty ? '🎀' : '🥐'}</span>
+                    <span>{isHelloKitty ? '🎀' : (activeLanguage === 'fr' ? '🥐' : '☕')}</span>
                     <span className="text-sm">
                         {isHelloKitty ? 'Ucz się z Hello Kitty vibes!' : 'Ucz się z przyjemnością!'}
                     </span>
-                    <span>{isHelloKitty ? '🌸' : '🇫🇷'}</span>
+                    <span>{isHelloKitty ? '🌸' : config.flag}</span>
                 </div>
             </div>
         </div>

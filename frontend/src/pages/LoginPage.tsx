@@ -63,7 +63,7 @@ export default function LoginPage() {
                             Witaj ponownie!
                         </CardTitle>
                         <CardDescription className="text-base">
-                            Zaloguj się, aby kontynuować naukę francuskiego
+                            Zaloguj się, aby kontynuować naukę
                         </CardDescription>
                     </CardHeader>
 

@@ -12,6 +12,12 @@ interface GuessObjectItemDialogProps {
     onSubmit: (data: GuessObjectItemCreate | GuessObjectItemUpdate) => Promise<void>
     item?: GuessObjectItem | null
     mode: 'create' | 'edit'
+    labels?: {
+        descriptionFr: string
+        answerFr: string
+        placeholderDesc: string
+        placeholderAnswer: string
+    }
 }
 
 export default function GuessObjectItemDialog({
@@ -20,6 +26,12 @@ export default function GuessObjectItemDialog({
     onSubmit,
     item,
     mode,
+    labels = {
+        descriptionFr: 'Opis w języku obcym (Pytanie)',
+        answerFr: 'Odpowiedź (jęz. obcy)',
+        placeholderDesc: "This is a red fruit...",
+        placeholderAnswer: "an apple"
+    }
 }: GuessObjectItemDialogProps) {
     const [descriptionFr, setDescriptionFr] = useState(item?.description_fr || '')
     const [descriptionPl, setDescriptionPl] = useState(item?.description_pl || '')
@@ -81,12 +93,12 @@ export default function GuessObjectItemDialog({
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="description_fr">Opis po francusku (Pytanie) <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="description_fr">{labels.descriptionFr} <span className="text-destructive">*</span></Label>
                         <Textarea
                             id="description_fr"
                             value={descriptionFr}
                             onChange={(e) => setDescriptionFr(e.target.value)}
-                            placeholder="C'est un fruit rouge qu'on mange souvent en été..."
+                            placeholder={labels.placeholderDesc}
                             required
                             disabled={loading}
                             rows={3}
@@ -108,12 +120,12 @@ export default function GuessObjectItemDialog({
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="answer_fr">Odpowiedź (FR) <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="answer_fr">{labels.answerFr} <span className="text-destructive">*</span></Label>
                             <Input
                                 id="answer_fr"
                                 value={answerFr}
                                 onChange={(e) => setAnswerFr(e.target.value)}
-                                placeholder="la pomme"
+                                placeholder={labels.placeholderAnswer}
                                 required
                                 disabled={loading}
                             />

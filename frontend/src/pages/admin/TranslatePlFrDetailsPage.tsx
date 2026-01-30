@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLanguageStore } from '@/store/languageStore'
 import { useParams, useNavigate } from 'react-router-dom'
 import { translatePlFrApi, aiApi, type Group, type TranslateItem, type TranslateItemCreate, type TranslateItemUpdate, type GeneratedItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,11 @@ export default function TranslatePlFrDetailsPage() {
     const [generating, setGenerating] = useState(false)
     const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([])
     const [savingGen, setSavingGen] = useState(false)
+
+    const { activeLanguage } = useLanguageStore()
+    const langCode = activeLanguage === 'fr' ? 'FR' : 'EN'
+    const langName = activeLanguage === 'fr' ? 'francuski' : 'angielski'
+    const langNameCap = activeLanguage === 'fr' ? 'Francuski' : 'Angielski'
 
     useEffect(() => {
         if (groupId) {
@@ -237,7 +243,7 @@ export default function TranslatePlFrDetailsPage() {
                             <ArrowRight className="text-muted-foreground mx-4" />
                             <div className="flex-1 text-right">
                                 <p className="font-semibold text-lg text-blue-600">{item.text_fr}</p>
-                                <p className="text-sm text-muted-foreground">FR (Odpowiedz)</p>
+                                <p className="text-sm text-muted-foreground">{langCode} (Odpowiedz)</p>
                             </div>
                             {item.category && (
                                 <div className="mx-4 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
@@ -268,7 +274,7 @@ export default function TranslatePlFrDetailsPage() {
                 onSubmit={dialogMode === 'create' ? (handleCreateItem as any) : (handleEditItem as any)}
                 item={editingItem}
                 mode={dialogMode}
-                labels={{ pl: 'Tekst polski (Pytanie)', fr: 'Tekst francuski (Odpowiedź)' }}
+                labels={{ pl: 'Tekst polski (Pytanie)', fr: `Tekst ${langName} (Odpowiedź)` }}
             />
 
             <DeleteTranslateItemDialog
@@ -387,7 +393,7 @@ export default function TranslatePlFrDetailsPage() {
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Francuski</Label>
+                                                    <Label className="text-xs text-muted-foreground">{langNameCap}</Label>
                                                     <Input
                                                         value={item.text_fr}
                                                         onChange={(e) => updateGeneratedItem(idx, 'text_fr', e.target.value)}

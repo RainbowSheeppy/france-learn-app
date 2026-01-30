@@ -7,9 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, ArrowRight, Folder } from 'lucide-react'
 import GroupDialog from '@/components/admin/GroupDialog'
 import DeleteGroupDialog from '@/components/admin/DeleteGroupDialog'
+import { useLanguageStore } from '@/store/languageStore'
 
 export default function GroupsPage() {
     const navigate = useNavigate()
+    const { activeLanguage } = useLanguageStore()
     const [groups, setGroups] = useState<Group[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -26,13 +28,13 @@ export default function GroupsPage() {
 
     useEffect(() => {
         loadGroups()
-    }, [])
+    }, [activeLanguage])
 
     const loadGroups = async () => {
         try {
             setLoading(true)
             setError('')
-            const data = await groupsApi.getAll()
+            const data = await groupsApi.getAll(activeLanguage)
             setGroups(data)
         } catch (err: any) {
             console.error('Error loading groups:', err)

@@ -3,8 +3,10 @@ import { LogOut, Home, Shield, Sparkles } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore, applyTheme } from '@/store/themeStore';
+import { useLanguageStore, getAppTitle } from '@/store/languageStore';
 import { Button } from '@/components/ui/button';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useGamificationStore } from '@/store/useGamificationStore';
 import { GamifiedStatusWidget } from '@/components/GamifiedStatusWidget';
 
@@ -12,20 +14,33 @@ interface AppLayoutProps {
     children: ReactNode;
 }
 
+// Route patterns where language switcher should be hidden (user is inside a specific group)
+const isInsideGroupRoute = (pathname: string): boolean => {
+    // Admin group detail pages: /admin/<mode>/<groupId>
+    const adminGroupPattern = /^\/admin\/(fiszki|translate-pl-fr|translate-fr-pl|guess-object|fill-blank)\/[^/]+$/;
+    // Study session pages: /learn/<mode>/<lang>/<groupId>
+    const studySessionPattern = /^\/learn\/(fiszki|translate-pl-fr|translate-fr-pl|guess-object|fill-blank)\/(fr|en)\/[^/]+/;
+
+    return adminGroupPattern.test(pathname) || studySessionPattern.test(pathname);
+};
+
 export default function AppLayout({ children }: AppLayoutProps) {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuthStore();
     const { theme } = useThemeStore();
+    const { activeLanguage, config, fetchLanguage } = useLanguageStore();
     const { points, currentStreak, fetchStats } = useGamificationStore();
     const isAdmin = user?.is_superuser;
     const isAdminPage = location.pathname.startsWith('/admin');
+    const shouldShowLanguageSwitcher = !isInsideGroupRoute(location.pathname);
 
-    // Apply theme on mount
+    // Apply theme on mount and fetch language
     useEffect(() => {
         applyTheme(theme);
         if (user) {
             fetchStats();
+            fetchLanguage();
         }
     }, [theme, user]);
 
@@ -53,13 +68,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 bg-gradient-to-br from-[hsl(16,90%,60%)] to-[hsl(350,80%,65%)]
                 dark:from-[hsl(16,70%,50%)] dark:to-[hsl(350,60%,55%)]
                 theme-hellokitty:from-[hsl(350,90%,75%)] theme-hellokitty:to-[hsl(330,85%,70%)]">
-                                <span className="text-white text-lg">🇫🇷</span>
+                                <span className="text-white text-lg">{config.flag}</span>
                             </div>
                             <h1 className="text-xl font-bold transition-colors
                 text-[hsl(220,40%,13%)]
                 dark:text-white
                 theme-hellokitty:text-[hsl(350,60%,45%)]">
-                                Nauka Francuskiego
+                                {getAppTitle(activeLanguage)}
                             </h1>
                         </div>
 
@@ -72,6 +87,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                                     <GamifiedStatusWidget points={points} currentStreak={currentStreak} />
                                 </div>
                             )}
+
+                            {/* Language Switcher - hidden when inside a group */}
+                            {shouldShowLanguageSwitcher && <LanguageSwitcher />}
 
                             {/* Theme Switcher */}
                             <ThemeSwitcher />
@@ -164,7 +182,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           text-[hsl(220,20%,55%)]
           dark:text-[hsl(220,20%,60%)]
           theme-hellokitty:text-[hsl(350,40%,55%)]">
-                    <p>© 2026 Nauka Francuskiego • Ucz się z przyjemnością 🥐</p>
+                    <p>© 2026 Nauka Języków • Ucz się z przyjemnością 🪩</p>
                 </div>
             </footer>
         </div>

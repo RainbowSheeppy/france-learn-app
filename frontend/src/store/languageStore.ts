@@ -36,7 +36,7 @@ const DEFAULT_CONFIG: Record<TargetLanguage, LanguageConfig> = {
 
 export const useLanguageStore = create<LanguageState>()(
     persist(
-        (set, get) => ({
+        (set) => ({
             activeLanguage: 'fr',
             config: DEFAULT_CONFIG.fr,
             isLoading: false,

@@ -21,7 +21,7 @@ interface TranslateItemDialogProps {
     groups?: Group[]
     labels?: {
         pl: string
-        fr: string
+        target: string
     }
 }
 
@@ -32,10 +32,10 @@ export default function TranslateItemDialog({
     item,
     mode,
     groups = [],
-    labels = { pl: 'Tekst polski', fr: 'Tekst francuski' }
+    labels = { pl: 'Tekst polski', target: 'Tekst francuski' }
 }: TranslateItemDialogProps) {
     const [textPl, setTextPl] = useState(item?.text_pl || '')
-    const [textFr, setTextFr] = useState(item?.text_fr || '')
+    const [textTarget, setTextTarget] = useState(item?.text_target || '')
     const [groupId, setGroupId] = useState<string>(item?.group_id || 'none')
     const [loading, setLoading] = useState(false)
 
@@ -43,11 +43,11 @@ export default function TranslateItemDialog({
         if (open) {
             if (item && mode === 'edit') {
                 setTextPl(item.text_pl)
-                setTextFr(item.text_fr)
+                setTextTarget(item.text_target)
                 setGroupId(item.group_id || 'none')
             } else {
                 setTextPl('')
-                setTextFr('')
+                setTextTarget('')
                 setGroupId('none')
             }
         }
@@ -60,7 +60,7 @@ export default function TranslateItemDialog({
         try {
             await onSubmit({
                 text_pl: textPl,
-                text_fr: textFr,
+                text_target: textTarget,
                 group_id: groupId === 'none' ? null : groupId
             })
             onOpenChange(false)
@@ -94,11 +94,11 @@ export default function TranslateItemDialog({
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="text_fr">{labels.fr} <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="text_target">{labels.target} <span className="text-destructive">*</span></Label>
                         <Input
-                            id="text_fr"
-                            value={textFr}
-                            onChange={(e) => setTextFr(e.target.value)}
+                            id="text_target"
+                            value={textTarget}
+                            onChange={(e) => setTextTarget(e.target.value)}
                             placeholder="Wpisz tekst..."
                             required
                             disabled={loading}

@@ -157,7 +157,7 @@ export default function TranslatePlFrDetailsPage() {
                 group_id: groupId,
                 items: generatedItems.map(item => ({
                     text_pl: item.text_pl,
-                    text_fr: item.text_fr,
+                    text_target: item.text_target,
                     category: item.category
                 }))
             })
@@ -178,7 +178,7 @@ export default function TranslatePlFrDetailsPage() {
         setGeneratedItems(prev => prev.filter((_, i) => i !== idx))
     }
 
-    const updateGeneratedItem = (idx: number, field: 'text_pl' | 'text_fr', val: string) => {
+    const updateGeneratedItem = (idx: number, field: 'text_pl' | 'text_target', val: string) => {
         setGeneratedItems(prev => {
             const newItems = [...prev]
             newItems[idx] = { ...newItems[idx], [field]: val }
@@ -242,7 +242,7 @@ export default function TranslatePlFrDetailsPage() {
                             </div>
                             <ArrowRight className="text-muted-foreground mx-4" />
                             <div className="flex-1 text-right">
-                                <p className="font-semibold text-lg text-blue-600">{item.text_fr}</p>
+                                <p className="font-semibold text-lg text-blue-600">{item.text_target}</p>
                                 <p className="text-sm text-muted-foreground">{langCode} (Odpowiedz)</p>
                             </div>
                             {item.category && (
@@ -274,7 +274,7 @@ export default function TranslatePlFrDetailsPage() {
                 onSubmit={dialogMode === 'create' ? (handleCreateItem as any) : (handleEditItem as any)}
                 item={editingItem}
                 mode={dialogMode}
-                labels={{ pl: 'Tekst polski (Pytanie)', fr: `Tekst ${langName} (Odpowiedź)` }}
+                labels={{ pl: 'Tekst polski (Pytanie)', target: `Tekst ${langName} (Odpowiedź)` }}
             />
 
             <DeleteTranslateItemDialog
@@ -395,8 +395,8 @@ export default function TranslatePlFrDetailsPage() {
                                                 <div className="space-y-1">
                                                     <Label className="text-xs text-muted-foreground">{langNameCap}</Label>
                                                     <Input
-                                                        value={item.text_fr}
-                                                        onChange={(e) => updateGeneratedItem(idx, 'text_fr', e.target.value)}
+                                                        value={item.text_target}
+                                                        onChange={(e) => updateGeneratedItem(idx, 'text_target', e.target.value)}
                                                     />
                                                 </div>
                                             </div>

@@ -35,7 +35,7 @@ export default function FillBlankDetailsPage() {
 
     const { activeLanguage } = useLanguageStore()
     const langLabelUpper = activeLanguage === 'fr' ? 'FR' : 'EN'
-    const langLabelLower = activeLanguage === 'fr' ? 'francuskie' : 'angielskie'
+
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')

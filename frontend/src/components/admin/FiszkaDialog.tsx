@@ -20,14 +20,14 @@ interface FiszkaDialogProps {
     mode: 'create' | 'edit'
     groups?: Group[]
     labels?: {
-        textFr: string
-        placeholderFr: string
+        textTarget: string
+        placeholderTarget: string
     }
 }
 
-export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mode, groups = [], labels = { textFr: 'Tekst w jęz. obcym', placeholderFr: 'np. Hello/Bonjour' } }: FiszkaDialogProps) {
+export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mode, groups = [], labels = { textTarget: 'Tekst w jęz. obcym', placeholderTarget: 'np. Hello/Bonjour' } }: FiszkaDialogProps) {
     const [textPl, setTextPl] = useState(fiszka?.text_pl || '')
-    const [textFr, setTextFr] = useState(fiszka?.text_fr || '')
+    const [textTarget, setTextTarget] = useState(fiszka?.text_target || '')
     const [imageUrl, setImageUrl] = useState(fiszka?.image_url || '')
     const [groupId, setGroupId] = useState<string>(fiszka?.group_id || 'none')
     const [loading, setLoading] = useState(false)
@@ -39,14 +39,14 @@ export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mod
         try {
             await onSubmit({
                 text_pl: textPl,
-                text_fr: textFr,
+                text_target: textTarget,
                 image_url: imageUrl || null,
                 group_id: groupId === 'none' ? null : groupId
             })
             onOpenChange(false)
             // Reset form
             setTextPl('')
-            setTextFr('')
+            setTextTarget('')
             setImageUrl('')
             setGroupId('none')
         } catch (err) {
@@ -60,12 +60,12 @@ export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mod
     useEffect(() => {
         if (fiszka) {
             setTextPl(fiszka.text_pl)
-            setTextFr(fiszka.text_fr)
+            setTextTarget(fiszka.text_target)
             setImageUrl(fiszka.image_url || '')
             setGroupId(fiszka.group_id || 'none')
         } else {
             setTextPl('')
-            setTextFr('')
+            setTextTarget('')
             setImageUrl('')
             setGroupId('none')
         }
@@ -96,14 +96,14 @@ export default function FiszkaDialog({ open, onOpenChange, onSubmit, fiszka, mod
                     </div>
 
                     <div className="space-y-2">
-                        <label htmlFor="text_fr" className="text-sm font-medium">
-                            {labels.textFr} <span className="text-destructive">*</span>
+                        <label htmlFor="text_target" className="text-sm font-medium">
+                            {labels.textTarget} <span className="text-destructive">*</span>
                         </label>
                         <Input
-                            id="text_fr"
-                            value={textFr}
-                            onChange={(e) => setTextFr(e.target.value)}
-                            placeholder={labels.placeholderFr}
+                            id="text_target"
+                            value={textTarget}
+                            onChange={(e) => setTextTarget(e.target.value)}
+                            placeholder={labels.placeholderTarget}
                             required
                             disabled={loading}
                         />

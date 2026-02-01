@@ -39,31 +39,31 @@ from .models import (
     FiszkaRead,
     FiszkaUpdate,
     FiszkaProgress,
-    TranslatePlFrGroup,
-    TranslatePlFrGroupCreate,
-    TranslatePlFrGroupRead,
-    TranslatePlFrGroupUpdate,
-    TranslatePlFr,
-    TranslatePlFrCreate,
-    TranslatePlFrRead,
-    TranslatePlFrUpdate,
-    TranslatePlFrProgress,
-    TranslateFrPlGroup,
-    TranslateFrPlGroupCreate,
-    TranslateFrPlGroupRead,
-    TranslateFrPlGroupUpdate,
-    TranslateFrPl,
-    TranslateFrPlCreate,
-    TranslateFrPlRead,
-    TranslateFrPlUpdate,
-    TranslateFrPlProgress,
+    TranslatePlToTargetGroup,
+    TranslatePlToTargetGroupCreate,
+    TranslatePlToTargetGroupRead,
+    TranslatePlToTargetGroupUpdate,
+    TranslatePlToTarget,
+    TranslatePlToTargetCreate,
+    TranslatePlToTargetRead,
+    TranslatePlToTargetUpdate,
+    TranslatePlToTargetProgress,
+    TranslateTargetToPlGroup,
+    TranslateTargetToPlGroupCreate,
+    TranslateTargetToPlGroupRead,
+    TranslateTargetToPlGroupUpdate,
+    TranslateTargetToPl,
+    TranslateTargetToPlCreate,
+    TranslateTargetToPlRead,
+    TranslateTargetToPlUpdate,
+    TranslateTargetToPlProgress,
     GroupStudyRead,
     ProgressUpdate,
     StudySessionRequest,
     GenerateRequest,
     GeneratedItem,
-    BatchCreatePlFr,
-    BatchCreateFrPl,
+    BatchCreatePlToTarget,
+    BatchCreateTargetToPl,
     # Guess Object (Zgadnij przedmiot)
     GuessObjectGroup,
     GuessObjectGroupCreate,
@@ -163,12 +163,13 @@ def seed_generated_content():
 
     with Session(engine) as session:
         # ========================================
-        # TRANSLATE PL → FR
+        # TRANSLATE PL → TARGET
         # ========================================
-        print("\n[1/4] Generowanie: Tłumaczenie PL → FR")
+        print("\n[1/4] Generowanie: Tłumaczenie PL → Target (FR)")
         for i, (name, desc) in enumerate(group_names):
             print(f"  Tworzenie grupy: {name}...")
-            group = TranslatePlFrGroup(name=f"PL→FR: {name}", description=desc)
+            # Default language is FR in model, so we don't need to specify it explicitly unless we want to change it
+            group = TranslatePlToTargetGroup(name=f"PL→Target: {name}", description=desc)
             session.add(group)
             session.commit()
             session.refresh(group)
@@ -177,7 +178,7 @@ def seed_generated_content():
             try:
                 prompt = f"""Wygeneruj 20 par zdań PL-FR na poziomie B1. Mieszanka: słownictwo, gramatyka, zwroty.
 Format JSON (bez dodatkowego tekstu):
-[{{"text_pl": "...", "text_fr": "...", "category": "mixed"}}]"""
+[{{"text_pl": "...", "text_target": "...", "category": "mixed"}}]"""
                 response = client.responses.create(model="gpt-5-nano", input=prompt)
                 output_text = response.output_text.strip()
                 if output_text.startswith("```json"):
@@ -188,10 +189,10 @@ Format JSON (bez dodatkowego tekstu):
 
                 count = 0
                 for item in items:
-                    if item.get("text_pl") and item.get("text_fr"):
-                        db_item = TranslatePlFr(
+                    if item.get("text_pl") and (item.get("text_target") or item.get("text_fr")):
+                        db_item = TranslatePlToTarget(
                             text_pl=item["text_pl"],
-                            text_fr=item["text_fr"],
+                            text_target=item.get("text_target") or item.get("text_fr"),
                             category=item.get("category", "mixed"),
                             group_id=group.id
                         )
@@ -203,12 +204,12 @@ Format JSON (bez dodatkowego tekstu):
                 print(f"  ✗ Błąd generowania: {e}")
 
         # ========================================
-        # TRANSLATE FR → PL
+        # TRANSLATE TARGET → PL
         # ========================================
-        print("\n[2/4] Generowanie: Tłumaczenie FR → PL")
+        print("\n[2/4] Generowanie: Tłumaczenie Target (FR) → PL")
         for i, (name, desc) in enumerate(group_names):
             print(f"  Tworzenie grupy: {name}...")
-            group = TranslateFrPlGroup(name=f"FR→PL: {name}", description=desc)
+            group = TranslateTargetToPlGroup(name=f"Target→PL: {name}", description=desc)
             session.add(group)
             session.commit()
             session.refresh(group)
@@ -217,7 +218,7 @@ Format JSON (bez dodatkowego tekstu):
             try:
                 prompt = f"""Wygeneruj 20 par zdań FR-PL na poziomie B1. Mieszanka: słownictwo, gramatyka, zwroty.
 Format JSON (bez dodatkowego tekstu):
-[{{"text_fr": "...", "text_pl": "...", "category": "mixed"}}]"""
+[{{"text_target": "...", "text_pl": "...", "category": "mixed"}}]"""
                 response = client.responses.create(model="gpt-5-nano", input=prompt)
                 output_text = response.output_text.strip()
                 if output_text.startswith("```json"):
@@ -228,9 +229,9 @@ Format JSON (bez dodatkowego tekstu):
 
                 count = 0
                 for item in items:
-                    if item.get("text_fr") and item.get("text_pl"):
-                        db_item = TranslateFrPl(
-                            text_fr=item["text_fr"],
+                    if (item.get("text_target") or item.get("text_fr")) and item.get("text_pl"):
+                        db_item = TranslateTargetToPl(
+                            text_target=item.get("text_target") or item.get("text_fr"),
                             text_pl=item["text_pl"],
                             category=item.get("category", "mixed"),
                             group_id=group.id
@@ -264,7 +265,7 @@ Cechy:
 - Kategorie: fruits, animals, furniture, tools, transport, food, nature, abstract, profession
 
 Format JSON (bez dodatkowego tekstu):
-[{"description_fr": "opis po francusku", "description_pl": "opis po polsku", "answer_fr": "odpowiedź z rodzajnikiem", "answer_pl": "odpowiedź po polsku", "category": "kategoria"}]"""
+[{"description_target": "opis po francusku", "description_pl": "opis po polsku", "answer_target": "odpowiedź z rodzajnikiem", "answer_pl": "odpowiedź po polsku", "category": "kategoria"}]"""
                 response = client.responses.create(model="gpt-5-nano", input=prompt)
                 output_text = response.output_text.strip()
                 if output_text.startswith("```json"):
@@ -275,11 +276,11 @@ Format JSON (bez dodatkowego tekstu):
 
                 count = 0
                 for item in items:
-                    if item.get("description_fr") and item.get("answer_fr"):
+                    if (item.get("description_target") or item.get("description_fr")) and (item.get("answer_target") or item.get("answer_fr")):
                         db_item = GuessObject(
-                            description_fr=item["description_fr"],
+                            description_target=item.get("description_target") or item.get("description_fr"),
                             description_pl=item.get("description_pl"),
-                            answer_fr=item["answer_fr"],
+                            answer_target=item.get("answer_target") or item.get("answer_fr"),
                             answer_pl=item.get("answer_pl"),
                             category=item.get("category"),
                             group_id=group.id
@@ -416,22 +417,22 @@ def update_fiszka_timestamp(mapper, connection, target):
     target.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
 
-@event.listens_for(TranslatePlFrGroup, "before_update")
+@event.listens_for(TranslatePlToTargetGroup, "before_update")
 def update_translateplfrgroup_timestamp(mapper, connection, target):
     target.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
 
-@event.listens_for(TranslatePlFr, "before_update")
+@event.listens_for(TranslatePlToTarget, "before_update")
 def update_translateplfr_timestamp(mapper, connection, target):
     target.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
 
-@event.listens_for(TranslateFrPlGroup, "before_update")
+@event.listens_for(TranslateTargetToPlGroup, "before_update")
 def update_translatefrplgroup_timestamp(mapper, connection, target):
     target.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
 
-@event.listens_for(TranslateFrPl, "before_update")
+@event.listens_for(TranslateTargetToPl, "before_update")
 def update_translatefrpl_timestamp(mapper, connection, target):
     target.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
@@ -548,7 +549,7 @@ def generate_ai_content(level: str, count: int, category: Optional[str] = None, 
 Język docelowy: {lang_name}.
 {cat_instruction}
 Format JSON (bez dodatkowego tekstu):
-[{{"text_pl": "...", "text_{lang_code.lower()}": "...", "category": "{cat_name}"}}]"""
+[{{"text_pl": "...", "text_target": "...", "category": "{cat_name}"}}]"""
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
 
@@ -561,12 +562,18 @@ Format JSON (bez dodatkowego tekstu):
         if output_text.endswith("```"):
             output_text = output_text[:-3]
 
-        # Normalize the response to always use text_fr key for compatibility
         items = json.loads(output_text.strip())
+        # Normalize keys if AI hallucinates old keys
         for item in items:
-            # Handle both text_fr and text_en keys, normalize to text_fr
-            if f"text_{lang_code.lower()}" in item and "text_fr" not in item:
-                item["text_fr"] = item[f"text_{lang_code.lower()}"]
+             if "text_target" not in item:
+                 # Try fallback keys
+                 if f"text_{lang_code.lower()}" in item:
+                     item["text_target"] = item[f"text_{lang_code.lower()}"]
+                 elif "text_fr" in item:
+                     item["text_target"] = item["text_fr"]
+                 elif "text_en" in item:
+                     item["text_target"] = item["text_en"]
+
         return items
     except Exception as e:
         print(f"Generation Error: {e}")
@@ -584,12 +591,11 @@ def generate_sentences_endpoint(request: GenerateRequest, current_user: User = D
     # Map to GeneratedItem
     items = []
     for item in generated_data:
-        # data might use 'text_target' or 'text_fr' depending on AI whim, harmonize here
-        t_fr = item.get("text_fr") or item.get("text_target")
-        if item.get("text_pl") and t_fr:
+        t_target = item.get("text_target")
+        if item.get("text_pl") and t_target:
             items.append(GeneratedItem(
                 text_pl=item.get("text_pl"),
-                text_fr=t_fr,
+                text_target=t_target,
                 category=item.get("category", request.category)
             ))
 
@@ -605,8 +611,10 @@ def verify_answer_with_ai(question: str, expected_answer: str, user_answer: str,
         lang_name = lang_config["name"]
 
         task_descriptions = {
-            "translate_pl_fr": f"tłumaczenie z polskiego na {lang_name}",
-            "translate_fr_pl": f"tłumaczenie z {lang_name}ego na polski",
+            "translate_pl_to_target": f"tłumaczenie z polskiego na {lang_name}",
+            "translate_target_to_pl": f"tłumaczenie z {lang_name}ego na polski",
+            "translate_pl_fr": f"tłumaczenie z polskiego na {lang_name}", # backward compat map
+            "translate_fr_pl": f"tłumaczenie z {lang_name}ego na polski", # backward compat map
             "fill_blank": f"uzupełnienie luki w zdaniu {lang_name}im"
         }
         task_desc = task_descriptions.get(task_type, "zadanie językowe")
@@ -653,7 +661,8 @@ def verify_answer_endpoint(
     """Weryfikuje odpowiedź użytkownika przez AI i ewentualnie dodaje jako alternatywę."""
     
     # Verify task_type
-    valid_types = ["translate_pl_fr", "translate_fr_pl", "fill_blank"]
+    # Map old types to new types if necessary
+    valid_types = ["translate_pl_to_target", "translate_target_to_pl", "translate_pl_fr", "translate_fr_pl", "fill_blank"]
     if request.task_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid task_type. Must be one of: {valid_types}")
     
@@ -662,7 +671,8 @@ def verify_answer_endpoint(
         question=request.question,
         expected_answer=request.expected_answer,
         user_answer=request.user_answer,
-        task_type=request.task_type
+        task_type=request.task_type,
+        language=current_user.active_language
     )
     
     is_correct = ai_result.get("is_correct", False)
@@ -674,12 +684,12 @@ def verify_answer_endpoint(
         item = None
         progress_model = None
         
-        if request.task_type == "translate_pl_fr":
-            item = session.get(TranslatePlFr, request.item_id)
-            progress_model = TranslatePlFrProgress
-        elif request.task_type == "translate_fr_pl":
-            item = session.get(TranslateFrPl, request.item_id)
-            progress_model = TranslateFrPlProgress
+        if request.task_type == "translate_pl_fr" or request.task_type == "translate_pl_to_target":
+            item = session.get(TranslatePlToTarget, request.item_id)
+            progress_model = TranslatePlToTargetProgress
+        elif request.task_type == "translate_fr_pl" or request.task_type == "translate_target_to_pl":
+            item = session.get(TranslateTargetToPl, request.item_id)
+            progress_model = TranslateTargetToPlProgress
         elif request.task_type == "fill_blank":
             item = session.get(FillBlank, request.item_id)
             progress_model = FillBlankProgress
@@ -985,14 +995,21 @@ async def import_fiszki(
     decoded_content = content.decode("utf-8")
     csv_reader = csv.DictReader(io.StringIO(decoded_content))
 
-    expected_headers = {"text_pl", "text_fr"}
+    expected_headers = {"text_pl", "text_target"}
     if not csv_reader.fieldnames or not expected_headers.issubset(set(csv_reader.fieldnames)):
-        raise HTTPException(status_code=400, detail=f"CSV must contain headers: {', '.join(expected_headers)}")
+        # Fallback for old CSVs with text_fr
+        if "text_fr" in csv_reader.fieldnames:
+             pass # Accept text_fr
+        else:
+             raise HTTPException(status_code=400, detail=f"CSV must contain headers: {', '.join(expected_headers)}")
 
     count = 0
     for row in csv_reader:
         fiszka = Fiszka(
-            text_pl=row["text_pl"], text_fr=row["text_fr"], image_url=row.get("image_url"), group_id=group_id
+            text_pl=row["text_pl"], 
+            text_target=row.get("text_target") or row.get("text_fr"), 
+            image_url=row.get("image_url"), 
+            group_id=group_id
         )
         session.add(fiszka)
         count += 1
@@ -1002,29 +1019,37 @@ async def import_fiszki(
 
 
 # ==========================================
-# TRANSLATE PL -> FR Endpoints
+# TRANSLATE PL -> TARGET Endpoints
 # ==========================================
 
 
-@app.get("/translate-pl-fr/groups/", response_model=list[TranslatePlFrGroupRead])
+@app.get("/translate-pl-fr/groups/", response_model=list[TranslatePlToTargetGroupRead])
 def get_pl_fr_groups(
     session: Session = Depends(get_session),
     language: Optional[TargetLanguage] = None,
 ):
-    """Pobierz listę grup tłumaczeń PL->FR, opcjonalnie filtrowanych po języku"""
-    query = select(TranslatePlFrGroup)
+    """Pobierz listę grup tłumaczeń PL->Target, opcjonalnie filtrowanych po języku"""
+    query = select(TranslatePlToTargetGroup)
     if language:
-        query = query.where(TranslatePlFrGroup.language == language)
-    return session.exec(query).all()
+        query = query.where(TranslatePlToTargetGroup.language == language)
+    groups = session.exec(query).all()
+    
+    result = []
+    for group in groups:
+        total = session.exec(select(func.count(TranslatePlToTarget.id)).where(TranslatePlToTarget.group_id == group.id)).one()
+        g_read = TranslatePlToTargetGroupRead.model_validate(group)
+        g_read.total_items = total
+        result.append(g_read)
+    return result
 
 
-@app.post("/translate-pl-fr/groups/", response_model=TranslatePlFrGroupRead)
+@app.post("/translate-pl-fr/groups/", response_model=TranslatePlToTargetGroupRead)
 def create_pl_fr_group(
-    group: TranslatePlFrGroupCreate,
+    group: TranslatePlToTargetGroupCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    new_group = TranslatePlFrGroup(**group.model_dump())
+    new_group = TranslatePlToTargetGroup(**group.model_dump())
     session.add(new_group)
     session.commit()
     session.refresh(new_group)
@@ -1043,17 +1068,8 @@ async def import_pl_fr(
 
     content = await file.read()
     decoded_content = content.decode("utf-8")
-    # Handling plain list of strings or headerless - user said "podajemy tylko zdanie w języku polskim(jedna kolumna)"
-    # We'll assume header 'text_pl' OR just read first column if header is missing/simple.
 
     csv_file = io.StringIO(decoded_content)
-
-    # Robust reading strategy:
-    # 1. Read all lines
-    # 2. Check if first line looks like a header (contains 'text_pl')
-    # 3. If yes, use DictReader or just skip first line and read column.
-    # 4. If no, assume data starts immediately.
-
     sentences = []
 
     # Reset file pointer
@@ -1075,14 +1091,18 @@ async def import_pl_fr(
             sentences.append(row[0].strip())
 
     count = 0
+    # Retrieve group to know language
+    group = session.get(TranslatePlToTargetGroup, group_id)
+    language = group.language if group else TargetLanguage.FR
+
     for text_pl in sentences:
         if not text_pl.strip():
             continue
 
         # Translate
-        text_fr = get_translation(text_pl, target_lang="francuski")
+        text_target = get_translation(text_pl, target_lang="target", language=language)
 
-        item = TranslatePlFr(text_pl=text_pl, text_fr=text_fr, group_id=group_id)
+        item = TranslatePlToTarget(text_pl=text_pl, text_target=text_target, group_id=group_id)
         session.add(item)
         count += 1
 
@@ -1090,19 +1110,19 @@ async def import_pl_fr(
     return {"message": f"Imported {count} items with translations"}
 
 
-@app.get("/translate-pl-fr/items/", response_model=list[TranslatePlFrRead])
+@app.get("/translate-pl-fr/items/", response_model=list[TranslatePlToTargetRead])
 def get_pl_fr_items(group_id: uuid.UUID, session: Session = Depends(get_session)):
-    return session.exec(select(TranslatePlFr).where(TranslatePlFr.group_id == group_id)).all()
+    return session.exec(select(TranslatePlToTarget).where(TranslatePlToTarget.group_id == group_id)).all()
 
 
-@app.put("/translate-pl-fr/groups/{group_id}", response_model=TranslatePlFrGroupRead)
+@app.put("/translate-pl-fr/groups/{group_id}", response_model=TranslatePlToTargetGroupRead)
 def update_pl_fr_group(
     group_id: uuid.UUID,
-    group_data: TranslatePlFrGroupUpdate,
+    group_data: TranslatePlToTargetGroupUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    group = session.get(TranslatePlFrGroup, group_id)
+    group = session.get(TranslatePlToTargetGroup, group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -1123,7 +1143,7 @@ def delete_pl_fr_group(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    group = session.get(TranslatePlFrGroup, group_id)
+    group = session.get(TranslatePlToTargetGroup, group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -1132,27 +1152,27 @@ def delete_pl_fr_group(
     return {"message": "Group deleted successfully"}
 
 
-@app.post("/translate-pl-fr/items/", response_model=TranslatePlFrRead)
+@app.post("/translate-pl-fr/items/", response_model=TranslatePlToTargetRead)
 def create_pl_fr_item(
-    item: TranslatePlFrCreate,
+    item: TranslatePlToTargetCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    new_item = TranslatePlFr.model_validate(item)
+    new_item = TranslatePlToTarget.model_validate(item)
     session.add(new_item)
     session.commit()
     session.refresh(new_item)
     return new_item
 
 
-@app.put("/translate-pl-fr/items/{item_id}", response_model=TranslatePlFrRead)
+@app.put("/translate-pl-fr/items/{item_id}", response_model=TranslatePlToTargetRead)
 def update_pl_fr_item(
     item_id: uuid.UUID,
-    item_data: TranslatePlFrUpdate,
+    item_data: TranslatePlToTargetUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    item = session.get(TranslatePlFr, item_id)
+    item = session.get(TranslatePlToTarget, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -1172,7 +1192,7 @@ def delete_pl_fr_item(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    item = session.get(TranslatePlFr, item_id)
+    item = session.get(TranslatePlToTarget, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     session.delete(item)
@@ -1180,18 +1200,18 @@ def delete_pl_fr_item(
     return {"message": "Item deleted successfully"}
 
 
-@app.post("/translate-pl-fr/items/batch", response_model=list[TranslatePlFrRead])
+@app.post("/translate-pl-fr/items/batch", response_model=list[TranslatePlToTargetRead])
 def batch_create_pl_fr_items(
-    batch: BatchCreatePlFr,
+    batch: BatchCreatePlToTarget,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
     created_items = []
     for item_data in batch.items:
         # Ensure group_id is set
-        db_item = TranslatePlFr(
+        db_item = TranslatePlToTarget(
             text_pl=item_data.text_pl,
-            text_fr=item_data.text_fr,
+            text_target=item_data.text_target,
             category=item_data.category,
             group_id=batch.group_id
         )
@@ -1205,29 +1225,29 @@ def batch_create_pl_fr_items(
 
 
 # ==========================================
-# TRANSLATE FR -> PL Endpoints
+# TRANSLATE TARGET -> PL Endpoints
 # ==========================================
 
 
-@app.get("/translate-fr-pl/groups/", response_model=list[TranslateFrPlGroupRead])
+@app.get("/translate-fr-pl/groups/", response_model=list[TranslateTargetToPlGroupRead])
 def get_fr_pl_groups(
     session: Session = Depends(get_session),
     language: Optional[TargetLanguage] = None,
 ):
     """Pobierz listę grup tłumaczeń FR->PL, opcjonalnie filtrowanych po języku"""
-    query = select(TranslateFrPlGroup)
+    query = select(TranslateTargetToPlGroup)
     if language:
-        query = query.where(TranslateFrPlGroup.language == language)
+        query = query.where(TranslateTargetToPlGroup.language == language)
     return session.exec(query).all()
 
 
-@app.post("/translate-fr-pl/groups/", response_model=TranslateFrPlGroupRead)
+@app.post("/translate-fr-pl/groups/", response_model=TranslateTargetToPlGroupRead)
 def create_fr_pl_group(
-    group: TranslateFrPlGroupCreate,
+    group: TranslateTargetToPlGroupCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    new_group = TranslateFrPlGroup(**group.model_dump())
+    new_group = TranslateTargetToPlGroup(**group.model_dump())
     session.add(new_group)
     session.commit()
     session.refresh(new_group)
@@ -1252,7 +1272,6 @@ async def import_fr_pl(
     decoded_content = content.decode("utf-8")
 
     csv_file = io.StringIO(decoded_content)
-    # Simple extraction logic same as above
     sentences = []
 
     # Simple reader approach for robustness
@@ -1267,6 +1286,11 @@ async def import_fr_pl(
         start_idx = 1
 
     count = 0
+    
+    # Retrieve group to know language
+    group = session.get(TranslateTargetToPlGroup, group_id)
+    language = group.language if group else TargetLanguage.FR
+
     for i in range(start_idx, len(rows)):
         row = rows[i]
         if not row:
@@ -1275,10 +1299,10 @@ async def import_fr_pl(
         if not text_pl.strip():
             continue
 
-        text_fr = get_translation(text_pl, target_lang="francuski")
+        text_target = get_translation(text_pl, target_lang="target", language=language)
 
-        item = TranslateFrPl(
-            text_fr=text_fr,  # Question
+        item = TranslateTargetToPl(
+            text_target=text_target,  # Question
             text_pl=text_pl,  # Answer
             group_id=group_id,
         )
@@ -1289,19 +1313,19 @@ async def import_fr_pl(
     return {"message": f"Imported {count} items with translations"}
 
 
-@app.get("/translate-fr-pl/items/", response_model=list[TranslateFrPlRead])
+@app.get("/translate-fr-pl/items/", response_model=list[TranslateTargetToPlRead])
 def get_fr_pl_items(group_id: uuid.UUID, session: Session = Depends(get_session)):
-    return session.exec(select(TranslateFrPl).where(TranslateFrPl.group_id == group_id)).all()
+    return session.exec(select(TranslateTargetToPl).where(TranslateTargetToPl.group_id == group_id)).all()
 
 
-@app.put("/translate-fr-pl/groups/{group_id}", response_model=TranslateFrPlGroupRead)
+@app.put("/translate-fr-pl/groups/{group_id}", response_model=TranslateTargetToPlGroupRead)
 def update_fr_pl_group(
     group_id: uuid.UUID,
-    group_data: TranslateFrPlGroupUpdate,
+    group_data: TranslateTargetToPlGroupUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    group = session.get(TranslateFrPlGroup, group_id)
+    group = session.get(TranslateTargetToPlGroup, group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -1322,7 +1346,7 @@ def delete_fr_pl_group(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    group = session.get(TranslateFrPlGroup, group_id)
+    group = session.get(TranslateTargetToPlGroup, group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -1331,27 +1355,27 @@ def delete_fr_pl_group(
     return {"message": "Group deleted successfully"}
 
 
-@app.post("/translate-fr-pl/items/", response_model=TranslateFrPlRead)
+@app.post("/translate-fr-pl/items/", response_model=TranslateTargetToPlRead)
 def create_fr_pl_item(
-    item: TranslateFrPlCreate,
+    item: TranslateTargetToPlCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    new_item = TranslateFrPl.model_validate(item)
+    new_item = TranslateTargetToPl.model_validate(item)
     session.add(new_item)
     session.commit()
     session.refresh(new_item)
     return new_item
 
 
-@app.put("/translate-fr-pl/items/{item_id}", response_model=TranslateFrPlRead)
+@app.put("/translate-fr-pl/items/{item_id}", response_model=TranslateTargetToPlRead)
 def update_fr_pl_item(
     item_id: uuid.UUID,
-    item_data: TranslateFrPlUpdate,
+    item_data: TranslateTargetToPlUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    item = session.get(TranslateFrPl, item_id)
+    item = session.get(TranslateTargetToPl, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -1371,7 +1395,7 @@ def delete_fr_pl_item(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    item = session.get(TranslateFrPl, item_id)
+    item = session.get(TranslateTargetToPl, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     session.delete(item)
@@ -1379,16 +1403,16 @@ def delete_fr_pl_item(
     return {"message": "Item deleted successfully"}
 
 
-@app.post("/translate-fr-pl/items/batch", response_model=list[TranslateFrPlRead])
+@app.post("/translate-fr-pl/items/batch", response_model=list[TranslateTargetToPlRead])
 def batch_create_fr_pl_items(
-    batch: BatchCreateFrPl,
+    batch: BatchCreateTargetToPl,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
     created_items = []
     for item_data in batch.items:
-        db_item = TranslateFrPl(
-            text_fr=item_data.text_fr,
+        db_item = TranslateTargetToPl(
+            text_target=item_data.text_target,
             text_pl=item_data.text_pl,
             category=item_data.category,
             group_id=batch.group_id
@@ -1500,23 +1524,23 @@ def update_fiszka_progress(
 
 # Translate PL -> Target Language Study
 @app.get("/study/translate-pl-fr/groups", response_model=list[GroupStudyRead])
-def get_study_pl_fr_groups(
+def get_study_pl_to_target_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
     language: Optional[TargetLanguage] = None,
 ):
     # Filter by language - use user's active language if not specified
     active_lang = language or current_user.active_language
-    groups = session.exec(select(TranslatePlFrGroup).where(TranslatePlFrGroup.language == active_lang)).all()
+    groups = session.exec(select(TranslatePlToTargetGroup).where(TranslatePlToTargetGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
-        total = session.exec(select(func.count(TranslatePlFr.id)).where(TranslatePlFr.group_id == group.id)).one()
+        total = session.exec(select(func.count(TranslatePlToTarget.id)).where(TranslatePlToTarget.group_id == group.id)).one()
         learned = session.exec(
-            select(func.count(TranslatePlFrProgress.item_id))
-            .join(TranslatePlFr)
-            .where(TranslatePlFr.group_id == group.id)
-            .where(TranslatePlFrProgress.user_id == current_user.id)
-            .where(TranslatePlFrProgress.learned == True)
+            select(func.count(TranslatePlToTargetProgress.item_id))
+            .join(TranslatePlToTarget)
+            .where(TranslatePlToTarget.group_id == group.id)
+            .where(TranslatePlToTargetProgress.user_id == current_user.id)
+            .where(TranslatePlToTargetProgress.learned == True)
         ).one()
 
         study_groups.append(
@@ -1527,15 +1551,15 @@ def get_study_pl_fr_groups(
     return study_groups
 
 
-@app.post("/study/translate-pl-fr/session", response_model=list[TranslatePlFrRead])
-def get_study_pl_fr_session(
+@app.post("/study/translate-pl-fr/session", response_model=list[TranslatePlToTargetRead])
+def get_study_pl_to_target_session(
     request: StudySessionRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     import random
 
-    statement = select(TranslatePlFr).where(TranslatePlFr.group_id.in_(request.group_ids))
+    statement = select(TranslatePlToTarget).where(TranslatePlToTarget.group_id.in_(request.group_ids))
     items = session.exec(statement).all()
 
     if not items:
@@ -1543,9 +1567,9 @@ def get_study_pl_fr_session(
 
     learned_ids = set(
         session.exec(
-            select(TranslatePlFrProgress.item_id)
-            .where(TranslatePlFrProgress.user_id == current_user.id)
-            .where(TranslatePlFrProgress.learned == True)
+            select(TranslatePlToTargetProgress.item_id)
+            .where(TranslatePlToTargetProgress.user_id == current_user.id)
+            .where(TranslatePlToTargetProgress.learned == True)
         ).all()
     )
 
@@ -1559,15 +1583,15 @@ def get_study_pl_fr_session(
 
 
 @app.post("/study/translate-pl-fr/progress")
-def update_pl_fr_progress(
+def update_pl_to_target_progress(
     progress_data: ProgressUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     progress = session.exec(
-        select(TranslatePlFrProgress)
-        .where(TranslatePlFrProgress.user_id == current_user.id)
-        .where(TranslatePlFrProgress.item_id == progress_data.item_id)
+        select(TranslatePlToTargetProgress)
+        .where(TranslatePlToTargetProgress.user_id == current_user.id)
+        .where(TranslatePlToTargetProgress.item_id == progress_data.item_id)
     ).first()
 
     if progress:
@@ -1575,9 +1599,9 @@ def update_pl_fr_progress(
         progress.last_reviewed = datetime.datetime.now(datetime.timezone.utc)
         session.add(progress)
     else:
-        if not session.get(TranslatePlFr, progress_data.item_id):
+        if not session.get(TranslatePlToTarget, progress_data.item_id):
             raise HTTPException(status_code=404, detail="Item not found")
-        progress = TranslatePlFrProgress(
+        progress = TranslatePlToTargetProgress(
             user_id=current_user.id, item_id=progress_data.item_id, learned=progress_data.learned
         )
         session.add(progress)
@@ -1587,23 +1611,23 @@ def update_pl_fr_progress(
 
 # Translate Target Language -> PL Study
 @app.get("/study/translate-fr-pl/groups", response_model=list[GroupStudyRead])
-def get_study_fr_pl_groups(
+def get_study_target_to_pl_groups(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
     language: Optional[TargetLanguage] = None,
 ):
     # Filter by language - use user's active language if not specified
     active_lang = language or current_user.active_language
-    groups = session.exec(select(TranslateFrPlGroup).where(TranslateFrPlGroup.language == active_lang)).all()
+    groups = session.exec(select(TranslateTargetToPlGroup).where(TranslateTargetToPlGroup.language == active_lang)).all()
     study_groups = []
     for group in groups:
-        total = session.exec(select(func.count(TranslateFrPl.id)).where(TranslateFrPl.group_id == group.id)).one()
+        total = session.exec(select(func.count(TranslateTargetToPl.id)).where(TranslateTargetToPl.group_id == group.id)).one()
         learned = session.exec(
-            select(func.count(TranslateFrPlProgress.item_id))
-            .join(TranslateFrPl)
-            .where(TranslateFrPl.group_id == group.id)
-            .where(TranslateFrPlProgress.user_id == current_user.id)
-            .where(TranslateFrPlProgress.learned == True)
+            select(func.count(TranslateTargetToPlProgress.item_id))
+            .join(TranslateTargetToPl)
+            .where(TranslateTargetToPl.group_id == group.id)
+            .where(TranslateTargetToPlProgress.user_id == current_user.id)
+            .where(TranslateTargetToPlProgress.learned == True)
         ).one()
 
         study_groups.append(
@@ -1614,15 +1638,15 @@ def get_study_fr_pl_groups(
     return study_groups
 
 
-@app.post("/study/translate-fr-pl/session", response_model=list[TranslateFrPlRead])
-def get_study_fr_pl_session(
+@app.post("/study/translate-fr-pl/session", response_model=list[TranslateTargetToPlRead])
+def get_study_target_to_pl_session(
     request: StudySessionRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     import random
 
-    statement = select(TranslateFrPl).where(TranslateFrPl.group_id.in_(request.group_ids))
+    statement = select(TranslateTargetToPl).where(TranslateTargetToPl.group_id.in_(request.group_ids))
     items = session.exec(statement).all()
 
     if not items:
@@ -1630,9 +1654,9 @@ def get_study_fr_pl_session(
 
     learned_ids = set(
         session.exec(
-            select(TranslateFrPlProgress.item_id)
-            .where(TranslateFrPlProgress.user_id == current_user.id)
-            .where(TranslateFrPlProgress.learned == True)
+            select(TranslateTargetToPlProgress.item_id)
+            .where(TranslateTargetToPlProgress.user_id == current_user.id)
+            .where(TranslateTargetToPlProgress.learned == True)
         ).all()
     )
 
@@ -1646,15 +1670,15 @@ def get_study_fr_pl_session(
 
 
 @app.post("/study/translate-fr-pl/progress")
-def update_fr_pl_progress(
+def update_target_to_pl_progress(
     progress_data: ProgressUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     progress = session.exec(
-        select(TranslateFrPlProgress)
-        .where(TranslateFrPlProgress.user_id == current_user.id)
-        .where(TranslateFrPlProgress.item_id == progress_data.item_id)
+        select(TranslateTargetToPlProgress)
+        .where(TranslateTargetToPlProgress.user_id == current_user.id)
+        .where(TranslateTargetToPlProgress.item_id == progress_data.item_id)
     ).first()
 
     if progress:
@@ -1662,9 +1686,9 @@ def update_fr_pl_progress(
         progress.last_reviewed = datetime.datetime.now(datetime.timezone.utc)
         session.add(progress)
     else:
-        if not session.get(TranslateFrPl, progress_data.item_id):
+        if not session.get(TranslateTargetToPl, progress_data.item_id):
             raise HTTPException(status_code=404, detail="Item not found")
-        progress = TranslateFrPlProgress(
+        progress = TranslateTargetToPlProgress(
             user_id=current_user.id, item_id=progress_data.item_id, learned=progress_data.learned
         )
         session.add(progress)
@@ -1686,7 +1710,15 @@ def get_guess_object_groups(
     query = select(GuessObjectGroup)
     if language:
         query = query.where(GuessObjectGroup.language == language)
-    return session.exec(query).all()
+    groups = session.exec(query).all()
+
+    result = []
+    for group in groups:
+        total = session.exec(select(func.count(GuessObject.id)).where(GuessObject.group_id == group.id)).one()
+        g_read = GuessObjectGroupRead.model_validate(group)
+        g_read.total_items = total
+        result.append(g_read)
+    return result
 
 
 @app.post("/guess-object/groups/", response_model=GuessObjectGroupRead)
@@ -1801,9 +1833,9 @@ def batch_create_guess_object_items(
     created_items = []
     for item_data in batch.items:
         db_item = GuessObject(
-            description_fr=item_data.description_fr,
+            description_target=item_data.description_target,
             description_pl=item_data.description_pl,
-            answer_fr=item_data.answer_fr,
+            answer_target=item_data.answer_target,
             answer_pl=item_data.answer_pl,
             category=item_data.category,
             hint=item_data.hint,
@@ -1832,14 +1864,21 @@ async def import_guess_object(
     decoded_content = content.decode("utf-8")
     csv_reader = csv.DictReader(io.StringIO(decoded_content))
 
-    expected_headers = {"description_fr", "answer_fr"}
+    expected_headers = {"description_target", "answer_target"}
     if not csv_reader.fieldnames or not expected_headers.issubset(set(csv_reader.fieldnames)):
-        raise HTTPException(status_code=400, detail=f"CSV must contain headers: {', '.join(expected_headers)}")
+        # Fallback for old CSVs with description_fr
+        if "description_fr" in csv_reader.fieldnames and "answer_fr" in csv_reader.fieldnames:
+             pass 
+        else:
+            raise HTTPException(status_code=400, detail=f"CSV must contain headers: {', '.join(expected_headers)}")
 
     count = 0
     for row in csv_reader:
         item = GuessObject(
-            description_fr=row["description_fr"], answer_fr=row["answer_fr"], hint=row.get("hint"), group_id=group_id
+            description_target=row.get("description_target") or row.get("description_fr"), 
+            answer_target=row.get("answer_target") or row.get("answer_fr"), 
+            hint=row.get("hint"), 
+            group_id=group_id
         )
         session.add(item)
         count += 1
@@ -1895,13 +1934,22 @@ Format JSON (bez dodatkowego tekstu):
         if output_text.endswith("```"):
             output_text = output_text[:-3]
 
-        # Normalize response keys to description_fr and answer_fr for compatibility
         items = json.loads(output_text.strip())
+        
+        # Normalize response keys to description_target/answer_target
         for item in items:
-            if f"description_{lang_code.lower()}" in item and "description_fr" not in item:
-                item["description_fr"] = item[f"description_{lang_code.lower()}"]
-            if f"answer_{lang_code.lower()}" in item and "answer_fr" not in item:
-                item["answer_fr"] = item[f"answer_{lang_code.lower()}"]
+            if "description_target" not in item:
+                 if f"description_{lang_code.lower()}" in item:
+                     item["description_target"] = item[f"description_{lang_code.lower()}"]
+                 elif "description_fr" in item:
+                     item["description_target"] = item["description_fr"]
+            
+            if "answer_target" not in item:
+                 if f"answer_{lang_code.lower()}" in item:
+                     item["answer_target"] = item[f"answer_{lang_code.lower()}"]
+                 elif "answer_fr" in item:
+                     item["answer_target"] = item["answer_fr"]
+        
         return items
     except Exception as e:
         print(f"Guess Object Generation Error: {e}")
@@ -1919,12 +1967,14 @@ def generate_guess_object_endpoint(
 
     items = []
     for item in generated_data:
-        if item.get("description_fr") and item.get("answer_fr"):
+        d_target = item.get("description_target")
+        a_target = item.get("answer_target")
+        if d_target and a_target:
             items.append(
                 GeneratedGuessObjectItem(
-                    description_fr=item["description_fr"],
+                    description_target=d_target,
                     description_pl=item.get("description_pl"),
-                    answer_fr=item["answer_fr"],
+                    answer_target=a_target,
                     answer_pl=item.get("answer_pl"),
                     category=item.get("category"),
                     hint=item.get("hint")
@@ -2571,34 +2621,34 @@ def get_dashboard_stats(
         .where(FiszkiGroup.language == active_lang)
     ).one()
 
-    # Translate PL->FR stats - filter by language
+    # Translate PL->Target stats - filter by language
     pl_fr_total = session.exec(
-        select(func.count(TranslatePlFr.id))
-        .join(TranslatePlFrGroup, TranslatePlFr.group_id == TranslatePlFrGroup.id)
-        .where(TranslatePlFrGroup.language == active_lang)
+        select(func.count(TranslatePlToTarget.id))
+        .join(TranslatePlToTargetGroup, TranslatePlToTarget.group_id == TranslatePlToTargetGroup.id)
+        .where(TranslatePlToTargetGroup.language == active_lang)
     ).one()
     pl_fr_learned = session.exec(
-        select(func.count(TranslatePlFrProgress.item_id))
-        .join(TranslatePlFr, TranslatePlFrProgress.item_id == TranslatePlFr.id)
-        .join(TranslatePlFrGroup, TranslatePlFr.group_id == TranslatePlFrGroup.id)
-        .where(TranslatePlFrProgress.user_id == current_user.id)
-        .where(TranslatePlFrProgress.learned == True)
-        .where(TranslatePlFrGroup.language == active_lang)
+        select(func.count(TranslatePlToTargetProgress.item_id))
+        .join(TranslatePlToTarget, TranslatePlToTargetProgress.item_id == TranslatePlToTarget.id)
+        .join(TranslatePlToTargetGroup, TranslatePlToTarget.group_id == TranslatePlToTargetGroup.id)
+        .where(TranslatePlToTargetProgress.user_id == current_user.id)
+        .where(TranslatePlToTargetProgress.learned == True)
+        .where(TranslatePlToTargetGroup.language == active_lang)
     ).one()
 
-    # Translate FR->PL stats - filter by language
+    # Translate Target->PL stats - filter by language
     fr_pl_total = session.exec(
-        select(func.count(TranslateFrPl.id))
-        .join(TranslateFrPlGroup, TranslateFrPl.group_id == TranslateFrPlGroup.id)
-        .where(TranslateFrPlGroup.language == active_lang)
+        select(func.count(TranslateTargetToPl.id))
+        .join(TranslateTargetToPlGroup, TranslateTargetToPl.group_id == TranslateTargetToPlGroup.id)
+        .where(TranslateTargetToPlGroup.language == active_lang)
     ).one()
     fr_pl_learned = session.exec(
-        select(func.count(TranslateFrPlProgress.item_id))
-        .join(TranslateFrPl, TranslateFrPlProgress.item_id == TranslateFrPl.id)
-        .join(TranslateFrPlGroup, TranslateFrPl.group_id == TranslateFrPlGroup.id)
-        .where(TranslateFrPlProgress.user_id == current_user.id)
-        .where(TranslateFrPlProgress.learned == True)
-        .where(TranslateFrPlGroup.language == active_lang)
+        select(func.count(TranslateTargetToPlProgress.item_id))
+        .join(TranslateTargetToPl, TranslateTargetToPlProgress.item_id == TranslateTargetToPl.id)
+        .join(TranslateTargetToPlGroup, TranslateTargetToPl.group_id == TranslateTargetToPlGroup.id)
+        .where(TranslateTargetToPlProgress.user_id == current_user.id)
+        .where(TranslateTargetToPlProgress.learned == True)
+        .where(TranslateTargetToPlGroup.language == active_lang)
     ).one()
 
     # Guess Object stats - filter by language
@@ -2694,7 +2744,7 @@ def generate_initial_content_endpoint(
     print("\n[1/4] Generowanie: Tłumaczenie PL → FR")
     for i, (name, desc) in enumerate(group_names):
         print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = TranslatePlFrGroup(name=f"PL→FR: {name}", description=desc)
+        group = TranslatePlToTargetGroup(name=f"PL→FR: {name}", description=desc, language=TargetLanguage.FR)
         session.add(group)
         session.commit()
         session.refresh(group)
@@ -2715,9 +2765,9 @@ Format JSON (bez dodatkowego tekstu):
 
             for item in items:
                 if item.get("text_pl") and item.get("text_fr"):
-                    db_item = TranslatePlFr(
+                    db_item = TranslatePlToTarget(
                         text_pl=item["text_pl"],
-                        text_fr=item["text_fr"],
+                        text_target=item["text_fr"],
                         category=item.get("category", "mixed"),
                         group_id=group.id
                     )
@@ -2734,7 +2784,7 @@ Format JSON (bez dodatkowego tekstu):
     print("\n[2/4] Generowanie: Tłumaczenie FR → PL", flush=True)
     for i, (name, desc) in enumerate(group_names):
         print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = TranslateFrPlGroup(name=f"FR→PL: {name}", description=desc)
+        group = TranslateTargetToPlGroup(name=f"FR→PL: {name}", description=desc, language=TargetLanguage.FR)
         session.add(group)
         session.commit()
         session.refresh(group)
@@ -2755,8 +2805,8 @@ Format JSON (bez dodatkowego tekstu):
 
             for item in items:
                 if item.get("text_fr") and item.get("text_pl"):
-                    db_item = TranslateFrPl(
-                        text_fr=item["text_fr"],
+                    db_item = TranslateTargetToPl(
+                        text_target=item["text_fr"],
                         text_pl=item["text_pl"],
                         category=item.get("category", "mixed"),
                         group_id=group.id
@@ -2774,7 +2824,7 @@ Format JSON (bez dodatkowego tekstu):
     print("\n[3/4] Generowanie: Zgadnij przedmiot", flush=True)
     for i, (name, desc) in enumerate(group_names):
         print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = GuessObjectGroup(name=f"Zgadnij: {name}", description=desc)
+        group = GuessObjectGroup(name=f"Zgadnij: {name}", description=desc, language=TargetLanguage.FR)
         session.add(group)
         session.commit()
         session.refresh(group)
@@ -2785,7 +2835,7 @@ Format JSON (bez dodatkowego tekstu):
             prompt = """Wygeneruj 20 zagadek słownych po francusku na poziomie B1.
 Opis 2-3 zdania, odpowiedź z rodzajnikiem (le/la/un/une).
 Format JSON:
-[{"description_fr": "...", "description_pl": "...", "answer_fr": "...", "answer_pl": "...", "category": "..."}]"""
+[{"description_target": "...", "description_pl": "...", "answer_target": "...", "answer_pl": "...", "category": "..."}]"""
             response = client.responses.create(model="gpt-5-nano", input=prompt)
             output_text = response.output_text.strip()
             if output_text.startswith("```json"):
@@ -2795,11 +2845,15 @@ Format JSON:
             items = json.loads(output_text.strip())
 
             for item in items:
-                if item.get("description_fr") and item.get("answer_fr"):
+                # Fallback for old keys if AI outputs them
+                desc_target = item.get("description_target") or item.get("description_fr")
+                answ_target = item.get("answer_target") or item.get("answer_fr")
+
+                if desc_target and answ_target:
                     db_item = GuessObject(
-                        description_fr=item["description_fr"],
+                        description_target=desc_target,
                         description_pl=item.get("description_pl"),
-                        answer_fr=item["answer_fr"],
+                        answer_target=answ_target,
                         answer_pl=item.get("answer_pl"),
                         category=item.get("category"),
                         group_id=group.id
@@ -2817,7 +2871,7 @@ Format JSON:
     print("\n[4/4] Generowanie: Uzupełnij lukę", flush=True)
     for i, (name, desc) in enumerate(group_names):
         print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = FillBlankGroup(name=f"Uzupełnij: {name}", description=desc)
+        group = FillBlankGroup(name=f"Uzupełnij: {name}", description=desc, language=TargetLanguage.FR)
         session.add(group)
         session.commit()
         session.refresh(group)
@@ -2838,14 +2892,19 @@ Format JSON:
             items = json.loads(output_text.strip())
 
             for item in items:
-                if item.get("sentence_with_blank") and item.get("answer"):
+                # Fallback mapping
+                sent_blank = item.get("sentence_with_blank") or item.get("sentence_target_with_blank")
+                answ = item.get("answer") or item.get("answer_target")
+                full_sent = item.get("full_sentence") or item.get("sentence_target")
+                
+                if sent_blank and answ:
                     db_item = FillBlank(
-                        sentence_with_blank=item["sentence_with_blank"],
+                        sentence_with_blank=sent_blank,
                         sentence_pl=item.get("sentence_pl"),
-                        answer=item["answer"],
-                        full_sentence=item.get("full_sentence", ""),
+                        answer=answ,
+                        full_sentence=full_sent,
                         hint=item.get("hint"),
-                        grammar_focus=item.get("grammar_focus"),
+                        grammar_focus=item.get("grammar_focus") or item.get("category"),
                         group_id=group.id
                     )
                     session.add(db_item)

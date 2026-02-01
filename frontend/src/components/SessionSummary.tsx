@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Trophy, Target, Clock, RotateCcw, TrendingUp, TrendingDown, Star, Sparkles, AlertCircle } from 'lucide-react';
+import { Trophy, RotateCcw, TrendingUp, TrendingDown, Star, Sparkles } from 'lucide-react';
 import { StudySessionStats } from '@/types/study';
 import { useThemeStore } from '@/store/themeStore';
 import SuccessCelebration from '@/components/SuccessCelebration';

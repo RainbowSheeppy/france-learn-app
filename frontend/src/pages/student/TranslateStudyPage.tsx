@@ -106,8 +106,8 @@ export default function TranslateStudyPage({ mode, endpoints, titles, adminEditR
 
             const mapped = res.data.map((item: any) => ({
                 id: item.id,
-                question: mode === 'pl-fr' ? item.text_pl : item.text_fr,
-                answer: mode === 'pl-fr' ? item.text_fr : item.text_pl,
+                question: mode === 'pl-fr' ? item.text_pl : item.text_target,
+                answer: mode === 'pl-fr' ? item.text_target : item.text_pl,
                 category: item.category
             }));
 
@@ -410,7 +410,7 @@ export default function TranslateStudyPage({ mode, endpoints, titles, adminEditR
                                             setAiVerifying(true);
                                             setAiError(null);
                                             try {
-                                                const taskType = mode === 'pl-fr' ? 'translate_pl_fr' : 'translate_fr_pl';
+                                                const taskType = mode === 'pl-fr' ? 'translate_pl_to_target' : 'translate_target_to_pl';
                                                 const result = await aiApi.verifyAnswer({
                                                     task_type: taskType,
                                                     item_id: currentItem.id,

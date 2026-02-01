@@ -52,7 +52,6 @@ function TranslatePlToTargetPage() {
 function TranslateTargetToPlPage() {
     const { activeLanguage, config } = useLanguageStore()
     const langName = activeLanguage === 'fr' ? 'Francuski' : 'Angielski'
-    const langNameGen = activeLanguage === 'fr' ? 'francuskiego' : 'angielskiego'
 
     return (
         <TranslateStudyPage

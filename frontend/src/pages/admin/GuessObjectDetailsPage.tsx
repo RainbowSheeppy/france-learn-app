@@ -35,7 +35,7 @@ export default function GuessObjectDetailsPage() {
 
     const { activeLanguage } = useLanguageStore()
     const langLabelUpper = activeLanguage === 'fr' ? 'FR' : 'EN'
-    const langLabel = activeLanguage === 'fr' ? 'francuskim' : 'angielskim'
+
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
@@ -145,9 +145,9 @@ export default function GuessObjectDetailsPage() {
             await guessObjectApi.batchCreate({
                 group_id: groupId,
                 items: generatedItems.map(item => ({
-                    description_fr: item.description_fr,
+                    description_target: item.description_target,
                     description_pl: item.description_pl,
-                    answer_fr: item.answer_fr,
+                    answer_target: item.answer_target,
                     answer_pl: item.answer_pl,
                     category: item.category,
                     hint: item.hint
@@ -239,7 +239,7 @@ export default function GuessObjectDetailsPage() {
                                             </span>
                                         )}
                                     </div>
-                                    <p className="font-medium text-lg">{item.description_fr}</p>
+                                    <p className="font-medium text-lg">{item.description_target}</p>
                                     {item.description_pl && (
                                         <p className="text-sm text-gray-500 mt-1">🇵🇱 {item.description_pl}</p>
                                     )}
@@ -250,7 +250,7 @@ export default function GuessObjectDetailsPage() {
                                 <ArrowRight className="text-muted-foreground mx-4 mt-2" />
                                 <div className="flex-1 text-right">
                                     <p className="text-sm text-muted-foreground mb-1">Odpowiedź ({langLabelUpper})</p>
-                                    <p className="font-semibold text-lg text-amber-600">{item.answer_fr}</p>
+                                    <p className="font-semibold text-lg text-amber-600">{item.answer_target}</p>
                                     {item.answer_pl && (
                                         <p className="text-sm text-gray-500 mt-1">🇵🇱 {item.answer_pl}</p>
                                     )}
@@ -281,13 +281,13 @@ export default function GuessObjectDetailsPage() {
                 item={editingItem}
                 mode={dialogMode}
                 labels={activeLanguage === 'fr' ? {
-                    descriptionFr: 'Opis w języku obcym (Pytanie)',
-                    answerFr: 'Odpowiedź (jęz. obcy)',
+                    descriptionTarget: 'Opis w języku obcym (Pytanie)',
+                    answerTarget: 'Odpowiedź (jęz. obcy)',
                     placeholderDesc: 'C\'est un fruit rouge...',
                     placeholderAnswer: 'une pomme'
                 } : {
-                    descriptionFr: 'Description in English (Question)',
-                    answerFr: 'Answer (EN)',
+                    descriptionTarget: 'Description in English (Question)',
+                    answerTarget: 'Answer (EN)',
                     placeholderDesc: 'This is a red fruit...',
                     placeholderAnswer: 'an apple'
                 }}
@@ -297,7 +297,7 @@ export default function GuessObjectDetailsPage() {
                 open={deleteDialogOpen}
                 onOpenChange={setDeleteDialogOpen}
                 onConfirm={handleDeleteItem}
-                itemText={deletingItem?.answer_fr || ''}
+                itemText={deletingItem?.answer_target || ''}
                 loading={deleteLoading}
             />
 
@@ -306,7 +306,7 @@ export default function GuessObjectDetailsPage() {
                     <DialogHeader>
                         <DialogTitle>Import z CSV</DialogTitle>
                         <DialogDescription>
-                            Wybierz plik CSV z kolumnami: description_fr, answer_fr, hint (opcjonalnie)
+                            Wybierz plik CSV z kolumnami: description_target, answer_target, hint (opcjonalnie)
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
@@ -385,8 +385,8 @@ export default function GuessObjectDetailsPage() {
                                                 <div className="space-y-1">
                                                     <Label className="text-xs text-muted-foreground">Opis ({langLabelUpper})</Label>
                                                     <Input
-                                                        value={item.description_fr}
-                                                        onChange={(e) => updateGeneratedItem(idx, 'description_fr', e.target.value)}
+                                                        value={item.description_target}
+                                                        onChange={(e) => updateGeneratedItem(idx, 'description_target', e.target.value)}
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
@@ -400,8 +400,8 @@ export default function GuessObjectDetailsPage() {
                                                 <div className="space-y-1">
                                                     <Label className="text-xs text-muted-foreground">Odpowiedź ({langLabelUpper})</Label>
                                                     <Input
-                                                        value={item.answer_fr}
-                                                        onChange={(e) => updateGeneratedItem(idx, 'answer_fr', e.target.value)}
+                                                        value={item.answer_target}
+                                                        onChange={(e) => updateGeneratedItem(idx, 'answer_target', e.target.value)}
                                                     />
                                                 </div>
                                                 <div className="space-y-1">

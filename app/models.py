@@ -58,7 +58,7 @@ class FiszkiGroupBase(SQLModel):
 
 
 class FiszkiGroup(BaseModel, FiszkiGroupBase, table=True):
-    __tablename__ = "fiszkigroup"
+    __tablename__ = "fiszki_group"
     fiszki: list["Fiszka"] = Relationship(back_populates="group")
 
 
@@ -70,6 +70,7 @@ class FiszkiGroupRead(BaseModel, FiszkiGroupBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    total_items: Optional[int] = 0
 
 
 class FiszkiGroupUpdate(SQLModel):
@@ -81,9 +82,9 @@ class FiszkiGroupUpdate(SQLModel):
 # Fiszka Models
 class FiszkaBase(SQLModel):
     text_pl: str
-    text_fr: str
+    text_target: str
     image_url: Optional[str] = None
-    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="fiszkigroup.id")
+    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="fiszki_group.id")
 
 
 class Fiszka(BaseModel, FiszkaBase, table=True):
@@ -102,7 +103,7 @@ class FiszkaRead(BaseModel, FiszkaBase):
 
 class FiszkaUpdate(SQLModel):
     text_pl: Optional[str] = None
-    text_fr: Optional[str] = None
+    text_target: Optional[str] = None
     image_url: Optional[str] = None
     group_id: Optional[uuid.UUID] = None
 
@@ -113,11 +114,6 @@ class BaseProgress(SQLModel):
 
 class BaseLearningProgress(BaseProgress):
     learned: bool = Field(default=False)
-    # half_learned: bool = Field(default=False) # Only for Fiszki? Assuming yes based on requirement "analogicznie jak fiszki" but modes might differ.
-    # Logic for Translation text-only might not need image, but structure is requested "analogous".
-    # Fiszki had: learned, half_learned, mistake.
-    # User said: "Dostępność i widoczność taka sama jak dla fiszek... progress"
-    # So I will replicate fields.
 
 
 class FiszkaProgress(BaseModel, BaseLearningProgress, table=True):
@@ -127,134 +123,136 @@ class FiszkaProgress(BaseModel, BaseLearningProgress, table=True):
     fiszka_id: uuid.UUID = Field(foreign_key="fiszka.id", primary_key=True)
 
 
-# Translate PL -> FR Models
-class TranslatePlFrGroupBase(SQLModel):
+# Translate PL -> Target Models
+class TranslatePlToTargetGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
     language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
-class TranslatePlFrGroup(BaseModel, TranslatePlFrGroupBase, table=True):
-    __tablename__ = "translateplfrgroup"
-    items: list["TranslatePlFr"] = Relationship(back_populates="group")
+class TranslatePlToTargetGroup(BaseModel, TranslatePlToTargetGroupBase, table=True):
+    __tablename__ = "translate_pl_to_target_group"
+    items: list["TranslatePlToTarget"] = Relationship(back_populates="group")
 
 
-class TranslatePlFrGroupCreate(TranslatePlFrGroupBase):
+class TranslatePlToTargetGroupCreate(TranslatePlToTargetGroupBase):
     pass
 
 
-class TranslatePlFrGroupRead(BaseModel, TranslatePlFrGroupBase):
+class TranslatePlToTargetGroupRead(BaseModel, TranslatePlToTargetGroupBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    total_items: Optional[int] = 0
 
 
-class TranslatePlFrGroupUpdate(SQLModel):
+class TranslatePlToTargetGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
     language: Optional[TargetLanguage] = None
 
 
-class TranslatePlFrBase(SQLModel):
+class TranslatePlToTargetBase(SQLModel):
     text_pl: str
-    text_fr: str
+    text_target: str
     category: Optional[str] = None  # Kategoria: vocabulary, grammar, phrases, idioms, etc.
     alternative_answers: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="translateplfrgroup.id")
+    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="translate_pl_to_target_group.id")
 
 
-class TranslatePlFr(BaseModel, TranslatePlFrBase, table=True):
-    __tablename__ = "translateplfr"
-    group: Optional[TranslatePlFrGroup] = Relationship(back_populates="items")
+class TranslatePlToTarget(BaseModel, TranslatePlToTargetBase, table=True):
+    __tablename__ = "translate_pl_to_target"
+    group: Optional[TranslatePlToTargetGroup] = Relationship(back_populates="items")
 
 
-class TranslatePlFrCreate(TranslatePlFrBase):
+class TranslatePlToTargetCreate(TranslatePlToTargetBase):
     pass
 
 
-class TranslatePlFrRead(BaseModel, TranslatePlFrBase):
+class TranslatePlToTargetRead(BaseModel, TranslatePlToTargetBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
 
-class TranslatePlFrUpdate(SQLModel):
+class TranslatePlToTargetUpdate(SQLModel):
     text_pl: Optional[str] = None
-    text_fr: Optional[str] = None
+    text_target: Optional[str] = None
     category: Optional[str] = None
     group_id: Optional[uuid.UUID] = None
 
 
-class TranslatePlFrProgress(BaseModel, BaseLearningProgress, table=True):
+class TranslatePlToTargetProgress(BaseModel, BaseLearningProgress, table=True):
     half_learned: bool = Field(default=False)
     mistake: bool = Field(default=False)
     user_id: uuid.UUID = Field(foreign_key="user.id", primary_key=True)
-    item_id: uuid.UUID = Field(foreign_key="translateplfr.id", primary_key=True)
+    item_id: uuid.UUID = Field(foreign_key="translate_pl_to_target.id", primary_key=True)
 
 
-# Translate FR -> PL Models
-class TranslateFrPlGroupBase(SQLModel):
+# Translate Target -> PL Models
+class TranslateTargetToPlGroupBase(SQLModel):
     name: str
     description: Optional[str] = None
     language: TargetLanguage = Field(default=TargetLanguage.FR, index=True)
 
 
-class TranslateFrPlGroup(BaseModel, TranslateFrPlGroupBase, table=True):
-    __tablename__ = "translatefrplgroup"
-    items: list["TranslateFrPl"] = Relationship(back_populates="group")
+class TranslateTargetToPlGroup(BaseModel, TranslateTargetToPlGroupBase, table=True):
+    __tablename__ = "translate_target_to_pl_group"
+    items: list["TranslateTargetToPl"] = Relationship(back_populates="group")
 
 
-class TranslateFrPlGroupCreate(TranslateFrPlGroupBase):
+class TranslateTargetToPlGroupCreate(TranslateTargetToPlGroupBase):
     pass
 
 
-class TranslateFrPlGroupRead(BaseModel, TranslateFrPlGroupBase):
+class TranslateTargetToPlGroupRead(BaseModel, TranslateTargetToPlGroupBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    total_items: Optional[int] = 0
 
 
-class TranslateFrPlGroupUpdate(SQLModel):
+class TranslateTargetToPlGroupUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
     language: Optional[TargetLanguage] = None
 
 
-class TranslateFrPlBase(SQLModel):
-    text_fr: str
+class TranslateTargetToPlBase(SQLModel):
+    text_target: str
     text_pl: str
     category: Optional[str] = None  # Kategoria: vocabulary, grammar, phrases, idioms, etc.
     alternative_answers: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="translatefrplgroup.id")
+    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="translate_target_to_pl_group.id")
 
 
-class TranslateFrPl(BaseModel, TranslateFrPlBase, table=True):
-    __tablename__ = "translatefrpl"
-    group: Optional[TranslateFrPlGroup] = Relationship(back_populates="items")
+class TranslateTargetToPl(BaseModel, TranslateTargetToPlBase, table=True):
+    __tablename__ = "translate_target_to_pl"
+    group: Optional[TranslateTargetToPlGroup] = Relationship(back_populates="items")
 
 
-class TranslateFrPlCreate(TranslateFrPlBase):
+class TranslateTargetToPlCreate(TranslateTargetToPlBase):
     pass
 
 
-class TranslateFrPlRead(BaseModel, TranslateFrPlBase):
+class TranslateTargetToPlRead(BaseModel, TranslateTargetToPlBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
 
-class TranslateFrPlUpdate(SQLModel):
-    text_fr: Optional[str] = None
+class TranslateTargetToPlUpdate(SQLModel):
+    text_target: Optional[str] = None
     text_pl: Optional[str] = None
     category: Optional[str] = None
     group_id: Optional[uuid.UUID] = None
 
 
-class TranslateFrPlProgress(BaseModel, BaseLearningProgress, table=True):
+class TranslateTargetToPlProgress(BaseModel, BaseLearningProgress, table=True):
     half_learned: bool = Field(default=False)
     mistake: bool = Field(default=False)
     user_id: uuid.UUID = Field(foreign_key="user.id", primary_key=True)
-    item_id: uuid.UUID = Field(foreign_key="translatefrpl.id", primary_key=True)
+    item_id: uuid.UUID = Field(foreign_key="translate_target_to_pl.id", primary_key=True)
 
 
 class GroupStudyRead(BaseModel):
@@ -286,17 +284,17 @@ class GenerateRequest(PydanticBaseModel):
 
 class GeneratedItem(PydanticBaseModel):
     text_pl: str
-    text_fr: str
+    text_target: str
     category: Optional[str] = None
 
 
-class BatchCreatePlFr(PydanticBaseModel):
-    items: list[TranslatePlFrCreate]
+class BatchCreatePlToTarget(PydanticBaseModel):
+    items: list[TranslatePlToTargetCreate]
     group_id: uuid.UUID
 
 
-class BatchCreateFrPl(PydanticBaseModel):
-    items: list[TranslateFrPlCreate]
+class BatchCreateTargetToPl(PydanticBaseModel):
+    items: list[TranslateTargetToPlCreate]
     group_id: uuid.UUID
 
 
@@ -312,7 +310,7 @@ class GuessObjectGroupBase(SQLModel):
 
 
 class GuessObjectGroup(BaseModel, GuessObjectGroupBase, table=True):
-    __tablename__ = "guessobjectgroup"
+    __tablename__ = "guess_object_group"
     items: list["GuessObject"] = Relationship(back_populates="group")
 
 
@@ -324,6 +322,7 @@ class GuessObjectGroupRead(BaseModel, GuessObjectGroupBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    total_items: Optional[int] = 0
 
 
 class GuessObjectGroupUpdate(SQLModel):
@@ -333,13 +332,13 @@ class GuessObjectGroupUpdate(SQLModel):
 
 
 class GuessObjectBase(SQLModel):
-    description_fr: str  # Opis przedmiotu po francusku
+    description_target: str  # Opis przedmiotu w języku docelowym
     description_pl: Optional[str] = None  # Opis po polsku (dla admina)
-    answer_fr: str  # Odpowiedź (nazwa przedmiotu z rodzajnikiem)
+    answer_target: str  # Odpowiedź (nazwa przedmiotu z rodzajnikiem)
     answer_pl: Optional[str] = None  # Odpowiedź po polsku (dla admina)
     category: Optional[str] = None  # Kategoria: fruits, animals, furniture, etc.
     hint: Optional[str] = None  # Opcjonalna podpowiedź
-    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="guessobjectgroup.id")
+    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="guess_object_group.id")
 
 
 class GuessObject(BaseModel, GuessObjectBase, table=True):
@@ -358,9 +357,9 @@ class GuessObjectRead(BaseModel, GuessObjectBase):
 
 
 class GuessObjectUpdate(SQLModel):
-    description_fr: Optional[str] = None
+    description_target: Optional[str] = None
     description_pl: Optional[str] = None
-    answer_fr: Optional[str] = None
+    answer_target: Optional[str] = None
     answer_pl: Optional[str] = None
     category: Optional[str] = None
     hint: Optional[str] = None
@@ -385,9 +384,9 @@ class GenerateGuessObjectRequest(PydanticBaseModel):
 
 
 class GeneratedGuessObjectItem(PydanticBaseModel):
-    description_fr: str
+    description_target: str
     description_pl: Optional[str] = None
-    answer_fr: str
+    answer_target: str
     answer_pl: Optional[str] = None
     category: Optional[str] = None
     hint: Optional[str] = None
@@ -405,7 +404,7 @@ class FillBlankGroupBase(SQLModel):
 
 
 class FillBlankGroup(BaseModel, FillBlankGroupBase, table=True):
-    __tablename__ = "fillblankgroup"
+    __tablename__ = "fill_blank_group"
     items: list["FillBlank"] = Relationship(back_populates="group")
 
 
@@ -417,6 +416,7 @@ class FillBlankGroupRead(BaseModel, FillBlankGroupBase):
     id: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    total_items: Optional[int] = 0
 
 
 class FillBlankGroupUpdate(SQLModel):
@@ -433,7 +433,7 @@ class FillBlankBase(SQLModel):
     hint: Optional[str] = None  # Podpowiedź
     grammar_focus: Optional[str] = None  # Kategoria gramatyczna (verb, article, preposition, pronoun, agreement)
     alternative_answers: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="fillblankgroup.id")
+    group_id: Optional[uuid.UUID] = Field(default=None, foreign_key="fill_blank_group.id")
 
 
 class FillBlank(BaseModel, FillBlankBase, table=True):
@@ -490,7 +490,7 @@ class GeneratedFillBlankItem(PydanticBaseModel):
 
 # AI Verification Models
 class AIVerifyRequest(PydanticBaseModel):
-    task_type: str  # 'translate_pl_fr', 'translate_fr_pl', 'fill_blank'
+    task_type: str  # 'translate_pl_to_target', 'translate_target_to_pl', 'fill_blank'
     item_id: uuid.UUID
     user_answer: str
     question: str
@@ -498,8 +498,6 @@ class AIVerifyRequest(PydanticBaseModel):
 
 
 class AIVerifyResponse(PydanticBaseModel):
-    is_correct: bool
-    explanation: str  # Wyjaśnienie po polsku
     is_correct: bool
     explanation: str  # Wyjaśnienie po polsku
     answer_added: bool  # Czy dodano jako alternatywę

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import type { Fiszka } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/store/themeStore'
+import { useLanguageStore } from '@/store/languageStore'
 
 interface FlipCardProps {
     fiszka: Fiszka
@@ -11,7 +12,11 @@ interface FlipCardProps {
 
 export default function FlipCard({ fiszka, isFlipped, onFlip }: FlipCardProps) {
     const theme = useThemeStore((state) => state.theme)
+    const { activeLanguage } = useLanguageStore()
     const isHK = theme === 'hellokitty'
+    const langLabel = activeLanguage === 'fr'
+        ? (isHK ? '🇫🇷 Français 🇫🇷' : 'Français')
+        : (isHK ? '🇬🇧 English 🇬🇧' : 'English')
 
     // Theme-based gradients
     const frontGradient = isHK
@@ -95,17 +100,17 @@ export default function FlipCard({ fiszka, isFlipped, onFlip }: FlipCardProps) {
 
                     <div className="text-center space-y-6 relative z-10">
                         <div className="text-sm uppercase tracking-wider opacity-90 font-semibold">
-                            {isHK ? '🇫🇷 Français 🇫🇷' : 'Français'}
+                            {langLabel}
                         </div>
                         <p className="text-3xl md:text-4xl font-bold leading-relaxed drop-shadow-lg">
-                            {fiszka.text_fr}
+                            {fiszka.text_target}
                         </p>
 
                         {fiszka.image_url && (
                             <div className="pt-6">
                                 <img
                                     src={fiszka.image_url}
-                                    alt={fiszka.text_fr}
+                                    alt={fiszka.text_target}
                                     className="max-w-full max-h-48 mx-auto rounded-xl shadow-xl object-contain border-4 border-white/30"
                                 />
                             </div>

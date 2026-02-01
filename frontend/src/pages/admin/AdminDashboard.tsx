@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
@@ -9,7 +9,7 @@ import {
     Folder, HelpCircle, TextCursorInput, Shield, Gamepad2, Sparkles, Loader2
 } from 'lucide-react';
 import { WordleModal } from '@/components/WordleModal';
-import { wordleApi, adminApi } from '@/lib/api';
+import { wordleApi, adminApi, dashboardApi, type DashboardStats } from '@/lib/api';
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
@@ -19,9 +19,22 @@ export default function AdminDashboard() {
     const [wordleTarget, setWordleTarget] = useState("");
     const [generating, setGenerating] = useState(false);
     const [generateMessage, setGenerateMessage] = useState<string | null>(null);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const data = await dashboardApi.getStats();
+                setStats(data);
+            } catch (err) {
+                console.error("Failed to fetch admin stats", err);
+            }
+        };
+        fetchStats();
+    }, [activeLanguage]);
 
     const langName = activeLanguage === 'fr' ? 'francuski' : 'angielski';
-    const langNameGen = activeLanguage === 'fr' ? 'francuskiego' : 'angielskiego';
+
 
     const managementSections = [
         {
@@ -173,10 +186,10 @@ export default function AdminDashboard() {
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Wszystkie fiszki', value: '—', icon: BookOpen, color: 'text-[hsl(16,90%,60%)]' },
-                    { label: 'Grupy tłumaczeń', value: '—', icon: Languages, color: 'text-[hsl(260,60%,60%)]' },
-                    { label: 'Ćwiczenia', value: '—', icon: TextCursorInput, color: 'text-[hsl(160,50%,55%)]' },
-                    { label: 'Zagadki', value: '—', icon: HelpCircle, color: 'text-[hsl(45,90%,55%)]' },
+                    { label: 'Wszystkie fiszki', value: stats?.fiszki.total ?? '—', icon: BookOpen, color: 'text-[hsl(16,90%,60%)]' },
+                    { label: 'Grupy tłumaczeń', value: stats ? (stats.translate_pl_fr.total + stats.translate_fr_pl.total) : '—', icon: Languages, color: 'text-[hsl(260,60%,60%)]' },
+                    { label: 'Ćwiczenia', value: stats?.fill_blank.total ?? '—', icon: TextCursorInput, color: 'text-[hsl(160,50%,55%)]' },
+                    { label: 'Zagadki', value: stats?.guess_object.total ?? '—', icon: HelpCircle, color: 'text-[hsl(45,90%,55%)]' },
                 ].map((stat, index) => {
                     const Icon = stat.icon;
                     return (

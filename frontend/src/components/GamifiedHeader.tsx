@@ -8,14 +8,12 @@ interface GamifiedHeaderProps {
     points: number;
     combo: number;
     multiplier: number;
-    highestCombo?: number;
 }
 
 export const GamifiedHeader: React.FC<GamifiedHeaderProps> = ({
     points,
     combo,
     multiplier,
-    highestCombo = 0
 }) => {
     const [prevPoints, setPrevPoints] = useState(points);
     const delta = points - prevPoints;

@@ -13,7 +13,7 @@ export interface StudyGroup {
 export interface StudyFlashcard {
     id: string;
     text_pl: string;
-    text_fr: string; // The correct answer
+    text_target: string; // The correct answer
     image_url?: string;
     // We don't need internal learned status here as backend filters it, 
     // but useful for tracking session state if needed.

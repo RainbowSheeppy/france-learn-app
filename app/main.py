@@ -478,7 +478,24 @@ def update_fillblank_timestamp(mapper, connection, target):
 
 # Production configuration from environment
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+
+def parse_cors_origins(origins_str: str) -> list[str]:
+    """Parses CORS origins and ensures they have a scheme."""
+    origins = origins_str.split(",")
+    valid_origins = []
+    for origin in origins:
+        origin = origin.strip()
+        if not origin:
+            continue
+        if not origin.startswith("http://") and not origin.startswith("https://"):
+            # Assume HTTPS for production domains, unless it looks like localhost which is risky to assume but usually localhost has http
+            # Actually, better to just add https:// for remote
+            valid_origins.append(f"https://{origin}")
+        else:
+            valid_origins.append(origin)
+    return valid_origins
+
+CORS_ORIGINS = parse_cors_origins(os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"))
 
 app = FastAPI(debug=DEBUG_MODE, lifespan=lifespan)
 

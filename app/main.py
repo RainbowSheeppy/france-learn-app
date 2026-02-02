@@ -2,6 +2,7 @@ import datetime
 import csv
 import io
 import os
+import re
 import uuid
 import random
 from contextlib import asynccontextmanager
@@ -13,7 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import event, func
 from sqlmodel import Session, select
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
+import asyncio
+import json
 
 from .auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -96,7 +99,71 @@ from .models import (
     WordleGame,
 )
 from .gamification import calculate_score, generate_wordle_word, check_wordle_guess
-import json
+
+
+# ===========================================
+# OpenAI Client Singleton & Helper Functions
+# ===========================================
+
+_openai_client: OpenAI | None = None
+_async_openai_client: AsyncOpenAI | None = None
+
+
+def get_openai_client() -> OpenAI:
+    """Zwraca singleton klienta OpenAI (unika tworzenia nowego przy każdym wywołaniu)."""
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
+
+
+def get_async_openai_client() -> AsyncOpenAI:
+    """Zwraca singleton async klienta OpenAI dla równoległych zapytań."""
+    global _async_openai_client
+    if _async_openai_client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
+        _async_openai_client = AsyncOpenAI(api_key=api_key)
+    return _async_openai_client
+
+
+def clean_json_response(output_text: str) -> str:
+    """Czyści odpowiedź AI z markdown code blocks."""
+    text = output_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
+async def call_openai_async(prompt: str, model: str = "gpt-5-nano") -> str:
+    """Asynchroniczne wywołanie OpenAI API."""
+    client = get_async_openai_client()
+    response = await client.responses.create(model=model, input=prompt)
+    return response.output_text.strip()
+
+
+async def call_openai_batch_async(prompts: list[str], model: str = "gpt-5-nano") -> list[str]:
+    """Równoległe wywołanie wielu promptów - znacznie szybsze dla batch operations."""
+    client = get_async_openai_client()
+    tasks = [client.responses.create(model=model, input=p) for p in prompts]
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+    results = []
+    for r in responses:
+        if isinstance(r, Exception):
+            print(f"Batch call error: {r}")
+            results.append("")
+        else:
+            results.append(r.output_text.strip())
+    return results
 
 
 def get_seed_users() -> list[dict]:
@@ -141,194 +208,95 @@ def reset_database():
     print("Database reset complete.")
 
 
-def seed_generated_content():
-    """Generate initial content for all learning modes using AI."""
-    from openai import OpenAI
+async def _seed_content_type_parallel(
+    session: Session,
+    content_type: str,
+    group_names: list[tuple[str, str]],
+    items_per_group: int = 20
+) -> tuple[int, int]:
+    """
+    Generuje zawartość dla jednego typu równolegle.
+    Zwraca (liczba_grup, liczba_elementów).
+    """
+    groups_created = 0
+    items_created = 0
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        print("WARNING: OPENAI_API_KEY not set, skipping content generation")
-        return
-
-    print("\n" + "=" * 50)
-    print("GENERATING INITIAL CONTENT (B1 level)")
-    print("=" * 50)
-
-    client = OpenAI(api_key=api_key)
-
-    group_names = [
-        ("Zestaw startowy 1", "Podstawowe słownictwo i zwroty B1"),
-        ("Zestaw startowy 2", "Rozszerzony zestaw B1"),
-    ]
-
-    with Session(engine) as session:
-        # ========================================
-        # TRANSLATE PL → TARGET
-        # ========================================
-        print("\n[1/4] Generowanie: Tłumaczenie PL → Target (FR)")
-        for i, (name, desc) in enumerate(group_names):
-            print(f"  Tworzenie grupy: {name}...")
-            # Default language is FR in model, so we don't need to specify it explicitly unless we want to change it
+    # Twórz wszystkie grupy najpierw
+    created_groups = []
+    for name, desc in group_names:
+        if content_type == "translate_pl_target":
             group = TranslatePlToTargetGroup(name=f"PL→Target: {name}", description=desc)
-            session.add(group)
-            session.commit()
-            session.refresh(group)
+        elif content_type == "translate_target_pl":
+            group = TranslateTargetToPlGroup(name=f"Target→PL: {name}", description=desc)
+        elif content_type == "guess_object":
+            group = GuessObjectGroup(name=f"Zgadnij: {name}", description=desc)
+        elif content_type == "fill_blank":
+            group = FillBlankGroup(name=f"Uzupełnij: {name}", description=desc)
+        else:
+            continue
 
-            print(f"  Generowanie 20 elementów dla grupy '{name}'...")
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        created_groups.append(group)
+        groups_created += 1
+
+    # Generuj zawartość dla wszystkich grup równolegle
+    total_items = items_per_group * len(created_groups)
+
+    if content_type == "translate_pl_target":
+        all_items = await generate_ai_content_parallel("B1", total_items, "mixed", TargetLanguage.FR, batch_size=10)
+    elif content_type == "translate_target_pl":
+        all_items = await generate_ai_content_parallel("B1", total_items, "mixed", TargetLanguage.FR, batch_size=10)
+    elif content_type == "guess_object":
+        all_items = await generate_guess_object_parallel("B1", total_items, TargetLanguage.FR, batch_size=10)
+    elif content_type == "fill_blank":
+        all_items = await generate_fill_blank_parallel("B1", total_items, None, TargetLanguage.FR, batch_size=10)
+    else:
+        all_items = []
+
+    # Rozdziel elementy między grupy
+    items_per_group_actual = len(all_items) // len(created_groups) if created_groups else 0
+    for i, group in enumerate(created_groups):
+        start_idx = i * items_per_group_actual
+        end_idx = start_idx + items_per_group_actual if i < len(created_groups) - 1 else len(all_items)
+        group_items = all_items[start_idx:end_idx]
+
+        for item in group_items:
             try:
-                prompt = f"""Wygeneruj 20 par zdań PL-FR na poziomie B1. Mieszanka: słownictwo, gramatyka, zwroty.
-Format JSON (bez dodatkowego tekstu):
-[{{"text_pl": "...", "text_target": "...", "category": "mixed"}}]"""
-                response = client.responses.create(model="gpt-5-nano", input=prompt)
-                output_text = response.output_text.strip()
-                if output_text.startswith("```json"):
-                    output_text = output_text[7:]
-                if output_text.endswith("```"):
-                    output_text = output_text[:-3]
-                items = json.loads(output_text.strip())
-
-                count = 0
-                for item in items:
-                    if item.get("text_pl") and (item.get("text_target") or item.get("text_fr")):
+                if content_type == "translate_pl_target":
+                    if item.get("text_pl") and item.get("text_target"):
                         db_item = TranslatePlToTarget(
                             text_pl=item["text_pl"],
-                            text_target=item.get("text_target") or item.get("text_fr"),
+                            text_target=item["text_target"],
                             category=item.get("category", "mixed"),
                             group_id=group.id
                         )
                         session.add(db_item)
-                        count += 1
-                session.commit()
-                print(f"  ✓ Dodano {count} elementów do grupy {i+1}/2")
-            except Exception as e:
-                print(f"  ✗ Błąd generowania: {e}")
-
-        # ========================================
-        # TRANSLATE TARGET → PL
-        # ========================================
-        print("\n[2/4] Generowanie: Tłumaczenie Target (FR) → PL")
-        for i, (name, desc) in enumerate(group_names):
-            print(f"  Tworzenie grupy: {name}...")
-            group = TranslateTargetToPlGroup(name=f"Target→PL: {name}", description=desc)
-            session.add(group)
-            session.commit()
-            session.refresh(group)
-
-            print(f"  Generowanie 20 elementów dla grupy '{name}'...")
-            try:
-                prompt = f"""Wygeneruj 20 par zdań FR-PL na poziomie B1. Mieszanka: słownictwo, gramatyka, zwroty.
-Format JSON (bez dodatkowego tekstu):
-[{{"text_target": "...", "text_pl": "...", "category": "mixed"}}]"""
-                response = client.responses.create(model="gpt-5-nano", input=prompt)
-                output_text = response.output_text.strip()
-                if output_text.startswith("```json"):
-                    output_text = output_text[7:]
-                if output_text.endswith("```"):
-                    output_text = output_text[:-3]
-                items = json.loads(output_text.strip())
-
-                count = 0
-                for item in items:
-                    if (item.get("text_target") or item.get("text_fr")) and item.get("text_pl"):
+                        items_created += 1
+                elif content_type == "translate_target_pl":
+                    if item.get("text_pl") and item.get("text_target"):
                         db_item = TranslateTargetToPl(
-                            text_target=item.get("text_target") or item.get("text_fr"),
+                            text_target=item["text_target"],
                             text_pl=item["text_pl"],
                             category=item.get("category", "mixed"),
                             group_id=group.id
                         )
                         session.add(db_item)
-                        count += 1
-                session.commit()
-                print(f"  ✓ Dodano {count} elementów do grupy {i+1}/2")
-            except Exception as e:
-                print(f"  ✗ Błąd generowania: {e}")
-
-        # ========================================
-        # GUESS OBJECT (Zgadnij)
-        # ========================================
-        print("\n[3/4] Generowanie: Zgadnij przedmiot")
-        for i, (name, desc) in enumerate(group_names):
-            print(f"  Tworzenie grupy: {name}...")
-            group = GuessObjectGroup(name=f"Zgadnij: {name}", description=desc)
-            session.add(group)
-            session.commit()
-            session.refresh(group)
-
-            print(f"  Generowanie 20 zagadek dla grupy '{name}'...")
-            try:
-                prompt = """Wygeneruj 20 zagadek słownych po francusku na poziomie B1.
-Cechy:
-- Przedmioty i pojęcia bardziej abstrakcyjne, opisy 2-3 zdania ze szczegółami
-- Opis powinien dawać wskazówki, ale nie zdradzać odpowiedzi wprost
-- Odpowiedź MUSI zawierać rodzajnik (le/la/un/une/l')
-- Dodaj polskie tłumaczenie opisu i odpowiedzi
-- Kategorie: fruits, animals, furniture, tools, transport, food, nature, abstract, profession
-
-Format JSON (bez dodatkowego tekstu):
-[{"description_target": "opis po francusku", "description_pl": "opis po polsku", "answer_target": "odpowiedź z rodzajnikiem", "answer_pl": "odpowiedź po polsku", "category": "kategoria"}]"""
-                response = client.responses.create(model="gpt-5-nano", input=prompt)
-                output_text = response.output_text.strip()
-                if output_text.startswith("```json"):
-                    output_text = output_text[7:]
-                if output_text.endswith("```"):
-                    output_text = output_text[:-3]
-                items = json.loads(output_text.strip())
-
-                count = 0
-                for item in items:
-                    if (item.get("description_target") or item.get("description_fr")) and (item.get("answer_target") or item.get("answer_fr")):
+                        items_created += 1
+                elif content_type == "guess_object":
+                    if item.get("description_target") and item.get("answer_target"):
                         db_item = GuessObject(
-                            description_target=item.get("description_target") or item.get("description_fr"),
+                            description_target=item["description_target"],
                             description_pl=item.get("description_pl"),
-                            answer_target=item.get("answer_target") or item.get("answer_fr"),
+                            answer_target=item["answer_target"],
                             answer_pl=item.get("answer_pl"),
                             category=item.get("category"),
                             group_id=group.id
                         )
                         session.add(db_item)
-                        count += 1
-                session.commit()
-                print(f"  ✓ Dodano {count} zagadek do grupy {i+1}/2")
-            except Exception as e:
-                print(f"  ✗ Błąd generowania: {e}")
-
-        # ========================================
-        # FILL BLANK (Uzupełnij)
-        # ========================================
-        print("\n[4/4] Generowanie: Uzupełnij lukę")
-        for i, (name, desc) in enumerate(group_names):
-            print(f"  Tworzenie grupy: {name}...")
-            group = FillBlankGroup(name=f"Uzupełnij: {name}", description=desc)
-            session.add(group)
-            session.commit()
-            session.refresh(group)
-
-            print(f"  Generowanie 20 ćwiczeń dla grupy '{name}'...")
-            try:
-                prompt = """Wygeneruj 20 ćwiczeń "uzupełnij lukę" po francusku na poziomie B1.
-
-Wytyczne: imparfait vs passé composé, zaimki y/en, przyimki z krajami (en/au/aux)
-
-Zasady:
-- Luka oznaczona jako ___ (trzy podkreślniki)
-- Każda luka testuje konkretną wiedzę gramatyczną
-- Odpowiedź musi być jednoznaczna
-- Hint naprowadza na kategorię gramatyczną
-- grammar_focus: verb | article | preposition | pronoun | agreement
-- Dodaj polskie tłumaczenie pełnego zdania
-
-Format JSON (bez dodatkowego tekstu):
-[{"sentence_with_blank": "zdanie z ___", "sentence_pl": "polskie tłumaczenie", "answer": "odpowiedź", "full_sentence": "pełne zdanie FR", "hint": "podpowiedź", "grammar_focus": "kategoria"}]"""
-                response = client.responses.create(model="gpt-5-nano", input=prompt)
-                output_text = response.output_text.strip()
-                if output_text.startswith("```json"):
-                    output_text = output_text[7:]
-                if output_text.endswith("```"):
-                    output_text = output_text[:-3]
-                items = json.loads(output_text.strip())
-
-                count = 0
-                for item in items:
+                        items_created += 1
+                elif content_type == "fill_blank":
                     if item.get("sentence_with_blank") and item.get("answer"):
                         db_item = FillBlank(
                             sentence_with_blank=item["sentence_with_blank"],
@@ -340,15 +308,66 @@ Format JSON (bez dodatkowego tekstu):
                             group_id=group.id
                         )
                         session.add(db_item)
-                        count += 1
-                session.commit()
-                print(f"  ✓ Dodano {count} ćwiczeń do grupy {i+1}/2")
+                        items_created += 1
             except Exception as e:
-                print(f"  ✗ Błąd generowania: {e}")
+                print(f"Error adding item: {e}")
+
+        session.commit()
+
+    return groups_created, items_created
+
+
+def seed_generated_content():
+    """
+    Generate initial content for all learning modes using AI.
+    Używa równoległego przetwarzania dla szybszego generowania.
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("WARNING: OPENAI_API_KEY not set, skipping content generation")
+        return
+
+    print("\n" + "=" * 50)
+    print("GENERATING INITIAL CONTENT (B1 level) - PARALLEL MODE")
+    print("=" * 50)
+
+    group_names = [
+        ("Zestaw startowy 1", "Podstawowe słownictwo i zwroty B1"),
+        ("Zestaw startowy 2", "Rozszerzony zestaw B1"),
+    ]
+
+    async def run_parallel_generation():
+        total_groups = 0
+        total_items = 0
+
+        with Session(engine) as session:
+            content_types = [
+                ("translate_pl_target", "Tłumaczenie PL → Target"),
+                ("translate_target_pl", "Tłumaczenie Target → PL"),
+                ("guess_object", "Zgadnij przedmiot"),
+                ("fill_blank", "Uzupełnij lukę"),
+            ]
+
+            for i, (content_type, label) in enumerate(content_types, 1):
+                print(f"\n[{i}/4] Generowanie: {label}...")
+                try:
+                    groups, items = await _seed_content_type_parallel(
+                        session, content_type, group_names, items_per_group=20
+                    )
+                    total_groups += groups
+                    total_items += items
+                    print(f"  ✓ Utworzono {groups} grup, {items} elementów")
+                except Exception as e:
+                    print(f"  ✗ Błąd: {e}")
+
+        return total_groups, total_items
+
+    # Uruchom asynchroniczne generowanie
+    total_groups, total_items = asyncio.run(run_parallel_generation())
 
     print("\n" + "=" * 50)
     print("GENEROWANIE ZAKOŃCZONE!")
-    print("Utworzono: 8 grup (2 na każdy tryb), ~160 elementów")
+    print(f"Utworzono: {total_groups} grup, {total_items} elementów")
     print("=" * 50 + "\n")
 
 
@@ -502,9 +521,9 @@ LANGUAGE_CONFIG = {
 
 # Helper for OpenAI Translation
 def get_translation(text: str, target_lang: str = "francuski", language: TargetLanguage = TargetLanguage.FR) -> str:
-    """Tłumaczy tekst używając OpenAI."""
+    """Tłumaczy tekst używając OpenAI (z singleton klientem)."""
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client = get_openai_client()
         lang_config = LANGUAGE_CONFIG[language]
         lang_name = lang_config["name"]
 
@@ -522,71 +541,136 @@ def get_translation(text: str, target_lang: str = "francuski", language: TargetL
 
 
 # Helper for OpenAI AI Generation
-def generate_ai_content(level: str, count: int, category: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
-    """Generuje pary zdań z opcjonalną kategorią dla wybranego języka."""
-    try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        lang_config = LANGUAGE_CONFIG[language]
-        lang_name = lang_config["name"]
-        lang_code = lang_config["code"]
+def _build_generate_prompt(level: str, count: int, category: Optional[str], language: TargetLanguage) -> tuple[str, str]:
+    """Buduje prompt do generowania zdań. Zwraca (prompt, cat_name)."""
+    lang_config = LANGUAGE_CONFIG[language]
+    lang_name = lang_config["name"]
+    lang_code = lang_config["code"]
 
-        category_instructions = {
-            "vocabulary": "słownictwo - rzeczowniki, przymiotniki, przysłówki",
-            "grammar": "gramatyka - zdania testujące konstrukcje gramatyczne",
-            "phrases": "zwroty i wyrażenia - codzienne frazy",
-            "idioms": f"idiomy i przysłowia {lang_name}ie",
-            "verbs": "czasowniki - odmiana i użycie",
-        }
+    category_instructions = {
+        "vocabulary": "słownictwo - rzeczowniki, przymiotniki, przysłówki",
+        "grammar": "gramatyka - zdania testujące konstrukcje gramatyczne",
+        "phrases": "zwroty i wyrażenia - codzienne frazy",
+        "idioms": f"idiomy i przysłowia {lang_name}ie",
+        "verbs": "czasowniki - odmiana i użycie",
+    }
 
-        cat_instruction = ""
-        cat_name = category
-        if category and category in category_instructions:
-            cat_instruction = f"Skup się na: {category_instructions[category]}."
-        elif not category:
-            cat_name = "mixed"
+    cat_instruction = ""
+    cat_name = category
+    if category and category in category_instructions:
+        cat_instruction = f"Skup się na: {category_instructions[category]}."
+    elif not category:
+        cat_name = "mixed"
 
-        prompt = f"""Wygeneruj {count} par zdań PL-{lang_code} na poziomie {level}.
+    prompt = f"""Wygeneruj {count} par zdań PL-{lang_code} na poziomie {level}.
 Język docelowy: {lang_name}.
 {cat_instruction}
 Format JSON (bez dodatkowego tekstu):
 [{{"text_pl": "...", "text_target": "...", "category": "{cat_name}"}}]"""
 
+    return prompt, cat_name or "mixed"
+
+
+def _normalize_content_keys(items: list[dict], lang_code: str) -> list[dict]:
+    """Normalizuje klucze odpowiedzi AI do text_target."""
+    for item in items:
+        if "text_target" not in item:
+            if f"text_{lang_code.lower()}" in item:
+                item["text_target"] = item[f"text_{lang_code.lower()}"]
+            elif "text_fr" in item:
+                item["text_target"] = item["text_fr"]
+            elif "text_en" in item:
+                item["text_target"] = item["text_en"]
+    return items
+
+
+def generate_ai_content(level: str, count: int, category: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje pary zdań z opcjonalną kategorią (synchronicznie)."""
+    try:
+        client = get_openai_client()
+        lang_code = LANGUAGE_CONFIG[language]["code"]
+        prompt, _ = _build_generate_prompt(level, count, category, language)
+
         response = client.responses.create(model="gpt-5-nano", input=prompt)
 
         usage_info = getattr(response, "usage", "N/A")
-        print(f"\n\nToken usage: {usage_info}")
+        print(f"Token usage: {usage_info}")
 
-        output_text = response.output_text.strip()
-        if output_text.startswith("```json"):
-            output_text = output_text[7:]
-        if output_text.endswith("```"):
-            output_text = output_text[:-3]
-
-        items = json.loads(output_text.strip())
-        # Normalize keys if AI hallucinates old keys
-        for item in items:
-             if "text_target" not in item:
-                 # Try fallback keys
-                 if f"text_{lang_code.lower()}" in item:
-                     item["text_target"] = item[f"text_{lang_code.lower()}"]
-                 elif "text_fr" in item:
-                     item["text_target"] = item["text_fr"]
-                 elif "text_en" in item:
-                     item["text_target"] = item["text_en"]
-
-        return items
+        output_text = clean_json_response(response.output_text)
+        items = json.loads(output_text)
+        return _normalize_content_keys(items, lang_code)
     except Exception as e:
         print(f"Generation Error: {e}")
         return []
 
 
+async def generate_ai_content_async(level: str, count: int, category: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje pary zdań asynchronicznie (szybsze dla wielu zapytań)."""
+    try:
+        lang_code = LANGUAGE_CONFIG[language]["code"]
+        prompt, _ = _build_generate_prompt(level, count, category, language)
+
+        output_text = await call_openai_async(prompt)
+        output_text = clean_json_response(output_text)
+        items = json.loads(output_text)
+        return _normalize_content_keys(items, lang_code)
+    except Exception as e:
+        print(f"Async Generation Error: {e}")
+        return []
+
+
+async def generate_ai_content_parallel(level: str, total_count: int, category: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR, batch_size: int = 10) -> list[dict]:
+    """
+    Generuje pary zdań równolegle w mniejszych batchach.
+    Dla total_count=20 i batch_size=10 wykonuje 2 równoległe zapytania po 10.
+    """
+    if total_count <= batch_size:
+        return await generate_ai_content_async(level, total_count, category, language)
+
+    lang_code = LANGUAGE_CONFIG[language]["code"]
+    num_batches = (total_count + batch_size - 1) // batch_size
+    items_per_batch = total_count // num_batches
+
+    prompts = []
+    for i in range(num_batches):
+        batch_count = items_per_batch if i < num_batches - 1 else total_count - (items_per_batch * (num_batches - 1))
+        prompt, _ = _build_generate_prompt(level, batch_count, category, language)
+        prompts.append(prompt)
+
+    print(f"Generating {total_count} items in {num_batches} parallel batches...")
+    responses = await call_openai_batch_async(prompts)
+
+    all_items = []
+    for output_text in responses:
+        if output_text:
+            try:
+                cleaned = clean_json_response(output_text)
+                batch_items = json.loads(cleaned)
+                all_items.extend(_normalize_content_keys(batch_items, lang_code))
+            except json.JSONDecodeError as e:
+                print(f"JSON parse error in batch: {e}")
+
+    return all_items
+
+
 @app.post("/api/ai/generate", response_model=list[GeneratedItem])
-def generate_sentences_endpoint(request: GenerateRequest, current_user: User = Depends(get_current_superuser)):
-    # Verify count limit to prevent abuse
+async def generate_sentences_endpoint(request: GenerateRequest, current_user: User = Depends(get_current_superuser)):
+    """
+    Generuje pary zdań do tłumaczeń.
+    Dla count > 10 używa równoległego przetwarzania (szybsze).
+    """
     if request.count > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 sentences at once")
 
-    generated_data = generate_ai_content(request.level, request.count, request.category, current_user.active_language)
+    # Użyj równoległego przetwarzania dla większych requestów
+    if request.count > 10:
+        generated_data = await generate_ai_content_parallel(
+            request.level, request.count, request.category, current_user.active_language, batch_size=10
+        )
+    else:
+        generated_data = await generate_ai_content_async(
+            request.level, request.count, request.category, current_user.active_language
+        )
 
     # Map to GeneratedItem
     items = []
@@ -604,17 +688,17 @@ def generate_sentences_endpoint(request: GenerateRequest, current_user: User = D
 
 # Helper for AI Answer Verification
 def verify_answer_with_ai(question: str, expected_answer: str, user_answer: str, task_type: str, language: TargetLanguage = TargetLanguage.FR) -> dict:
-    """Weryfikuje odpowiedź użytkownika używając AI."""
+    """Weryfikuje odpowiedź użytkownika używając AI (z singleton klientem)."""
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client = get_openai_client()
         lang_config = LANGUAGE_CONFIG[language]
         lang_name = lang_config["name"]
 
         task_descriptions = {
             "translate_pl_to_target": f"tłumaczenie z polskiego na {lang_name}",
             "translate_target_to_pl": f"tłumaczenie z {lang_name}ego na polski",
-            "translate_pl_fr": f"tłumaczenie z polskiego na {lang_name}", # backward compat map
-            "translate_fr_pl": f"tłumaczenie z {lang_name}ego na polski", # backward compat map
+            "translate_pl_fr": f"tłumaczenie z polskiego na {lang_name}",
+            "translate_fr_pl": f"tłumaczenie z {lang_name}ego na polski",
             "fill_blank": f"uzupełnienie luki w zdaniu {lang_name}im"
         }
         task_desc = task_descriptions.get(task_type, "zadanie językowe")
@@ -636,17 +720,8 @@ Zasady oceny:
 - Bądź wyrozumiały ale sprawiedliwy"""
 
         response = client.responses.create(model="gpt-5-nano", input=prompt)
-        output_text = response.output_text.strip()
-
-        # Clean up JSON if wrapped in markdown
-        if output_text.startswith("```json"):
-            output_text = output_text[7:]
-        if output_text.startswith("```"):
-            output_text = output_text[3:]
-        if output_text.endswith("```"):
-            output_text = output_text[:-3]
-
-        return json.loads(output_text.strip())
+        output_text = clean_json_response(response.output_text)
+        return json.loads(output_text)
     except Exception as e:
         print(f"AI Verification Error: {e}")
         raise HTTPException(status_code=500, detail=f"Błąd weryfikacji AI: {str(e)}")
@@ -1888,33 +1963,30 @@ async def import_guess_object(
 
 
 # AI Generation for Guess Object
-def generate_guess_object_ai_content(level: str, count: int, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
-    """Generuje zagadki słowne w wybranym języku z polskimi tłumaczeniami."""
-    try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        lang_config = LANGUAGE_CONFIG[language]
-        lang_name = lang_config["name"]
-        lang_code = lang_config["code"]
+def _build_guess_object_prompt(level: str, count: int, language: TargetLanguage) -> str:
+    """Buduje prompt do generowania zagadek słownych."""
+    lang_config = LANGUAGE_CONFIG[language]
+    lang_name = lang_config["name"]
+    lang_code = lang_config["code"]
 
-        level_instructions = {
-            "A1": "proste przedmioty (owoce, zwierzęta, meble, ubrania), krótkie opisy 1-2 zdania, używaj prostych słów",
-            "A2": "przedmioty codzienne (narzędzia, sprzęt kuchenny, środki transportu), opisy 2-3 zdania",
-            "B1": "przedmioty i pojęcia bardziej abstrakcyjne, opisy 2-3 zdania ze szczegółami",
-            "B2": "pojęcia abstrakcyjne, zawody, instrumenty, złożone opisy z metaforami",
-            "C1": "pojęcia filozoficzne, kulturowe, złożone metafory, 3-4 zdania",
-            "C2": "zaawansowane pojęcia, idiomy, gry słowne, wyrafinowane opisy",
-        }
+    level_instructions = {
+        "A1": "proste przedmioty (owoce, zwierzęta, meble, ubrania), krótkie opisy 1-2 zdania, używaj prostych słów",
+        "A2": "przedmioty codzienne (narzędzia, sprzęt kuchenny, środki transportu), opisy 2-3 zdania",
+        "B1": "przedmioty i pojęcia bardziej abstrakcyjne, opisy 2-3 zdania ze szczegółami",
+        "B2": "pojęcia abstrakcyjne, zawody, instrumenty, złożone opisy z metaforami",
+        "C1": "pojęcia filozoficzne, kulturowe, złożone metafory, 3-4 zdania",
+        "C2": "zaawansowane pojęcia, idiomy, gry słowne, wyrafinowane opisy",
+    }
 
-        instruction = level_instructions.get(level, level_instructions["B1"])
+    instruction = level_instructions.get(level, level_instructions["B1"])
 
-        # Article instruction based on language
-        article_instruction = ""
-        if language == TargetLanguage.FR:
-            article_instruction = "- Odpowiedź MUSI zawierać rodzajnik (le/la/un/une/l')"
-        elif language == TargetLanguage.EN:
-            article_instruction = "- Odpowiedź MUSI zawierać przedimek (a/an/the) jeśli to wymagane"
+    article_instruction = ""
+    if language == TargetLanguage.FR:
+        article_instruction = "- Odpowiedź MUSI zawierać rodzajnik (le/la/un/une/l')"
+    elif language == TargetLanguage.EN:
+        article_instruction = "- Odpowiedź MUSI zawierać przedimek (a/an/the) jeśli to wymagane"
 
-        prompt = f"""Wygeneruj {count} zagadek słownych po {lang_name}u na poziomie {level}.
+    return f"""Wygeneruj {count} zagadek słownych po {lang_name}u na poziomie {level}.
 Cechy:
 - {instruction}
 - Opis powinien dawać wskazówki, ale nie zdradzać odpowiedzi wprost
@@ -1926,44 +1998,105 @@ Cechy:
 Format JSON (bez dodatkowego tekstu):
 [{{"description_{lang_code.lower()}": "opis po {lang_name}u", "description_pl": "opis po polsku", "answer_{lang_code.lower()}": "odpowiedź", "answer_pl": "odpowiedź po polsku", "category": "kategoria"}}]"""
 
+
+def _normalize_guess_object_keys(items: list[dict], lang_code: str) -> list[dict]:
+    """Normalizuje klucze zagadek do description_target/answer_target."""
+    for item in items:
+        if "description_target" not in item:
+            if f"description_{lang_code.lower()}" in item:
+                item["description_target"] = item[f"description_{lang_code.lower()}"]
+            elif "description_fr" in item:
+                item["description_target"] = item["description_fr"]
+
+        if "answer_target" not in item:
+            if f"answer_{lang_code.lower()}" in item:
+                item["answer_target"] = item[f"answer_{lang_code.lower()}"]
+            elif "answer_fr" in item:
+                item["answer_target"] = item["answer_fr"]
+    return items
+
+
+def generate_guess_object_ai_content(level: str, count: int, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje zagadki słowne synchronicznie."""
+    try:
+        client = get_openai_client()
+        lang_code = LANGUAGE_CONFIG[language]["code"]
+        prompt = _build_guess_object_prompt(level, count, language)
+
         response = client.responses.create(model="gpt-5-nano", input=prompt)
-
-        output_text = response.output_text.strip()
-        if output_text.startswith("```json"):
-            output_text = output_text[7:]
-        if output_text.endswith("```"):
-            output_text = output_text[:-3]
-
-        items = json.loads(output_text.strip())
-        
-        # Normalize response keys to description_target/answer_target
-        for item in items:
-            if "description_target" not in item:
-                 if f"description_{lang_code.lower()}" in item:
-                     item["description_target"] = item[f"description_{lang_code.lower()}"]
-                 elif "description_fr" in item:
-                     item["description_target"] = item["description_fr"]
-            
-            if "answer_target" not in item:
-                 if f"answer_{lang_code.lower()}" in item:
-                     item["answer_target"] = item[f"answer_{lang_code.lower()}"]
-                 elif "answer_fr" in item:
-                     item["answer_target"] = item["answer_fr"]
-        
-        return items
+        output_text = clean_json_response(response.output_text)
+        items = json.loads(output_text)
+        return _normalize_guess_object_keys(items, lang_code)
     except Exception as e:
         print(f"Guess Object Generation Error: {e}")
         return []
 
 
+async def generate_guess_object_ai_content_async(level: str, count: int, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje zagadki słowne asynchronicznie."""
+    try:
+        lang_code = LANGUAGE_CONFIG[language]["code"]
+        prompt = _build_guess_object_prompt(level, count, language)
+
+        output_text = await call_openai_async(prompt)
+        output_text = clean_json_response(output_text)
+        items = json.loads(output_text)
+        return _normalize_guess_object_keys(items, lang_code)
+    except Exception as e:
+        print(f"Async Guess Object Generation Error: {e}")
+        return []
+
+
+async def generate_guess_object_parallel(level: str, total_count: int, language: TargetLanguage = TargetLanguage.FR, batch_size: int = 10) -> list[dict]:
+    """Generuje zagadki równolegle w mniejszych batchach."""
+    if total_count <= batch_size:
+        return await generate_guess_object_ai_content_async(level, total_count, language)
+
+    lang_code = LANGUAGE_CONFIG[language]["code"]
+    num_batches = (total_count + batch_size - 1) // batch_size
+    items_per_batch = total_count // num_batches
+
+    prompts = []
+    for i in range(num_batches):
+        batch_count = items_per_batch if i < num_batches - 1 else total_count - (items_per_batch * (num_batches - 1))
+        prompts.append(_build_guess_object_prompt(level, batch_count, language))
+
+    print(f"Generating {total_count} guess objects in {num_batches} parallel batches...")
+    responses = await call_openai_batch_async(prompts)
+
+    all_items = []
+    for output_text in responses:
+        if output_text:
+            try:
+                cleaned = clean_json_response(output_text)
+                batch_items = json.loads(cleaned)
+                all_items.extend(_normalize_guess_object_keys(batch_items, lang_code))
+            except json.JSONDecodeError as e:
+                print(f"JSON parse error in guess object batch: {e}")
+
+    return all_items
+
+
 @app.post("/api/ai/generate-guess-object", response_model=list[GeneratedGuessObjectItem])
-def generate_guess_object_endpoint(
+async def generate_guess_object_endpoint(
     request: GenerateGuessObjectRequest, current_user: User = Depends(get_current_superuser)
 ):
+    """
+    Generuje zagadki słowne (Guess Object).
+    Dla count > 10 używa równoległego przetwarzania (szybsze).
+    """
     if request.count > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 items at once")
 
-    generated_data = generate_guess_object_ai_content(request.level, request.count, current_user.active_language)
+    # Użyj równoległego przetwarzania dla większych requestów
+    if request.count > 10:
+        generated_data = await generate_guess_object_parallel(
+            request.level, request.count, current_user.active_language, batch_size=10
+        )
+    else:
+        generated_data = await generate_guess_object_ai_content_async(
+            request.level, request.count, current_user.active_language
+        )
 
     items = []
     for item in generated_data:
@@ -2251,55 +2384,56 @@ async def import_fill_blank(
 
 
 # AI Generation for Fill Blank
-def generate_fill_blank_ai_content(level: str, count: int, grammar_focus: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
-    """Generuje ćwiczenia z lukami w wybranym języku z polskimi tłumaczeniami."""
-    try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        lang_config = LANGUAGE_CONFIG[language]
-        lang_name = lang_config["name"]
-        lang_code = lang_config["code"]
+def _get_fill_blank_grammar_config(language: TargetLanguage) -> tuple[dict, dict]:
+    """Zwraca konfigurację gramatyki dla danego języka (level_grammar, focus_map)."""
+    if language == TargetLanguage.FR:
+        level_grammar = {
+            "A1": "czasowniki w présent (être, avoir, regularne -er), rodzajniki (le/la/un/une), podstawowe przyimki (à, de, dans)",
+            "A2": "passé composé, rodzajniki cząstkowe (du/de la/des), przyimki miejsca (sur, sous, devant)",
+            "B1": "imparfait vs passé composé, zaimki y/en, przyimki z krajami (en/au/aux)",
+            "B2": "subjonctif présent, zaimki względne (qui/que/dont/où), zgodność participe passé",
+            "C1": "wszystkie czasy, subjonctif passé, zaimki złożone, idiomy",
+            "C2": "niuanse stylistyczne, wyrażenia literackie, zaawansowana składnia",
+        }
+        focus_map = {
+            "verb": "Skup się na czasownikach i ich odmianach.",
+            "article": "Skup się na rodzajnikach (le/la/un/une/du/de la/des).",
+            "preposition": "Skup się na przyimkach.",
+            "pronoun": "Skup się na zaimkach (y, en, zaimki względne).",
+            "agreement": "Skup się na zgodności (rodzaj, liczba, participe passé).",
+        }
+    else:  # EN
+        level_grammar = {
+            "A1": "czasowniki w present simple (be, have, regularne), przedimki (a/an/the), podstawowe przyimki (in, on, at)",
+            "A2": "past simple, present continuous, przedimki z rzeczownikami policzalnymi i niepoliczalnymi",
+            "B1": "present perfect vs past simple, czasowniki modalne (can/could/may/might)",
+            "B2": "passive voice, zdania warunkowe (conditionals I, II, III), reported speech",
+            "C1": "wszystkie czasy, inwersja, zaawansowane struktury zdaniowe",
+            "C2": "niuanse stylistyczne, wyrażenia idiomatyczne, zaawansowana składnia",
+        }
+        focus_map = {
+            "verb": "Skup się na czasownikach i ich formach (tenses).",
+            "article": "Skup się na przedimkach (a/an/the/some/any).",
+            "preposition": "Skup się na przyimkach.",
+            "pronoun": "Skup się na zaimkach (relative, reflexive).",
+            "agreement": "Skup się na zgodności (subject-verb agreement, singular/plural).",
+        }
+    return level_grammar, focus_map
 
-        # Language-specific grammar focus
-        if language == TargetLanguage.FR:
-            level_grammar = {
-                "A1": "czasowniki w présent (être, avoir, regularne -er), rodzajniki (le/la/un/une), podstawowe przyimki (à, de, dans)",
-                "A2": "passé composé, rodzajniki cząstkowe (du/de la/des), przyimki miejsca (sur, sous, devant)",
-                "B1": "imparfait vs passé composé, zaimki y/en, przyimki z krajami (en/au/aux)",
-                "B2": "subjonctif présent, zaimki względne (qui/que/dont/où), zgodność participe passé",
-                "C1": "wszystkie czasy, subjonctif passé, zaimki złożone, idiomy",
-                "C2": "niuanse stylistyczne, wyrażenia literackie, zaawansowana składnia",
-            }
-            focus_map = {
-                "verb": "Skup się na czasownikach i ich odmianach.",
-                "article": "Skup się na rodzajnikach (le/la/un/une/du/de la/des).",
-                "preposition": "Skup się na przyimkach.",
-                "pronoun": "Skup się na zaimkach (y, en, zaimki względne).",
-                "agreement": "Skup się na zgodności (rodzaj, liczba, participe passé).",
-            }
-        else:  # EN
-            level_grammar = {
-                "A1": "czasowniki w present simple (be, have, regularne), przedimki (a/an/the), podstawowe przyimki (in, on, at)",
-                "A2": "past simple, present continuous, przedimki z rzeczownikami policzalnymi i niepoliczalnymi",
-                "B1": "present perfect vs past simple, czasowniki modalne (can/could/may/might)",
-                "B2": "passive voice, zdania warunkowe (conditionals I, II, III), reported speech",
-                "C1": "wszystkie czasy, inwersja, zaawansowane struktury zdaniowe",
-                "C2": "niuanse stylistyczne, wyrażenia idiomatyczne, zaawansowana składnia",
-            }
-            focus_map = {
-                "verb": "Skup się na czasownikach i ich formach (tenses).",
-                "article": "Skup się na przedimkach (a/an/the/some/any).",
-                "preposition": "Skup się na przyimkach.",
-                "pronoun": "Skup się na zaimkach (relative, reflexive).",
-                "agreement": "Skup się na zgodności (subject-verb agreement, singular/plural).",
-            }
 
-        grammar_instruction = level_grammar.get(level, level_grammar["B1"])
+def _build_fill_blank_prompt(level: str, count: int, grammar_focus: Optional[str], language: TargetLanguage) -> str:
+    """Buduje prompt do generowania ćwiczeń z lukami."""
+    lang_config = LANGUAGE_CONFIG[language]
+    lang_name = lang_config["name"]
 
-        focus_instruction = ""
-        if grammar_focus:
-            focus_instruction = focus_map.get(grammar_focus, "")
+    level_grammar, focus_map = _get_fill_blank_grammar_config(language)
+    grammar_instruction = level_grammar.get(level, level_grammar["B1"])
 
-        prompt = f"""Wygeneruj {count} ćwiczeń "uzupełnij lukę" po {lang_name}u na poziomie {level}.
+    focus_instruction = ""
+    if grammar_focus:
+        focus_instruction = focus_map.get(grammar_focus, "")
+
+    return f"""Wygeneruj {count} ćwiczeń "uzupełnij lukę" po {lang_name}u na poziomie {level}.
 
 Wytyczne dla poziomu {level}: {grammar_instruction}
 {focus_instruction}
@@ -2315,28 +2449,82 @@ Zasady:
 Format JSON (bez dodatkowego tekstu):
 [{{"sentence_with_blank": "zdanie z ___", "sentence_pl": "polskie tłumaczenie", "answer": "odpowiedź", "full_sentence": "pełne zdanie", "hint": "podpowiedź", "grammar_focus": "kategoria"}}]"""
 
+
+def generate_fill_blank_ai_content(level: str, count: int, grammar_focus: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje ćwiczenia z lukami synchronicznie."""
+    try:
+        client = get_openai_client()
+        prompt = _build_fill_blank_prompt(level, count, grammar_focus, language)
+
         response = client.responses.create(model="gpt-5-nano", input=prompt)
-
-        output_text = response.output_text.strip()
-        if output_text.startswith("```json"):
-            output_text = output_text[7:]
-        if output_text.endswith("```"):
-            output_text = output_text[:-3]
-
-        return json.loads(output_text.strip())
+        output_text = clean_json_response(response.output_text)
+        return json.loads(output_text)
     except Exception as e:
         print(f"Fill Blank Generation Error: {e}")
         return []
 
 
+async def generate_fill_blank_ai_content_async(level: str, count: int, grammar_focus: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR) -> list[dict]:
+    """Generuje ćwiczenia z lukami asynchronicznie."""
+    try:
+        prompt = _build_fill_blank_prompt(level, count, grammar_focus, language)
+        output_text = await call_openai_async(prompt)
+        output_text = clean_json_response(output_text)
+        return json.loads(output_text)
+    except Exception as e:
+        print(f"Async Fill Blank Generation Error: {e}")
+        return []
+
+
+async def generate_fill_blank_parallel(level: str, total_count: int, grammar_focus: Optional[str] = None, language: TargetLanguage = TargetLanguage.FR, batch_size: int = 10) -> list[dict]:
+    """Generuje ćwiczenia z lukami równolegle w mniejszych batchach."""
+    if total_count <= batch_size:
+        return await generate_fill_blank_ai_content_async(level, total_count, grammar_focus, language)
+
+    num_batches = (total_count + batch_size - 1) // batch_size
+    items_per_batch = total_count // num_batches
+
+    prompts = []
+    for i in range(num_batches):
+        batch_count = items_per_batch if i < num_batches - 1 else total_count - (items_per_batch * (num_batches - 1))
+        prompts.append(_build_fill_blank_prompt(level, batch_count, grammar_focus, language))
+
+    print(f"Generating {total_count} fill blank items in {num_batches} parallel batches...")
+    responses = await call_openai_batch_async(prompts)
+
+    all_items = []
+    for output_text in responses:
+        if output_text:
+            try:
+                cleaned = clean_json_response(output_text)
+                batch_items = json.loads(cleaned)
+                all_items.extend(batch_items)
+            except json.JSONDecodeError as e:
+                print(f"JSON parse error in fill blank batch: {e}")
+
+    return all_items
+
+
 @app.post("/api/ai/generate-fill-blank", response_model=list[GeneratedFillBlankItem])
-def generate_fill_blank_endpoint(
+async def generate_fill_blank_endpoint(
     request: GenerateFillBlankRequest, current_user: User = Depends(get_current_superuser)
 ):
+    """
+    Generuje ćwiczenia z lukami (Fill Blank).
+    Dla count > 10 używa równoległego przetwarzania (szybsze).
+    """
     if request.count > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 items at once")
 
-    generated_data = generate_fill_blank_ai_content(request.level, request.count, request.grammar_focus, current_user.active_language)
+    # Użyj równoległego przetwarzania dla większych requestów
+    if request.count > 10:
+        generated_data = await generate_fill_blank_parallel(
+            request.level, request.count, request.grammar_focus, current_user.active_language, batch_size=10
+        )
+    else:
+        generated_data = await generate_fill_blank_ai_content_async(
+            request.level, request.count, request.grammar_focus, current_user.active_language
+        )
 
     items = []
     for item in generated_data:
@@ -2706,6 +2894,10 @@ def get_dashboard_stats(
 # Admin: Generate Initial Content
 # ==========================================
 
+class GenerateContentRequest(BaseModel):
+    group_count: int = 2
+    items_per_group: int = 10
+
 class GenerateContentResponse(BaseModel):
     success: bool
     message: str
@@ -2713,214 +2905,164 @@ class GenerateContentResponse(BaseModel):
     items_created: int
 
 
+def get_next_ai_group_index(session: Session, GroupModel, language: TargetLanguage) -> int:
+    """Znajdź najwyższy indeks grup 'Ai Generated X' i zwróć następny."""
+    groups = session.exec(
+        select(GroupModel).where(GroupModel.language == language)
+    ).all()
+
+    max_index = 0
+    pattern = re.compile(r"Ai Generated (\d+)")
+
+    for group in groups:
+        match = pattern.search(group.name)
+        if match:
+            index = int(match.group(1))
+            if index > max_index:
+                max_index = index
+
+    return max_index + 1
+
+
 @app.post("/api/admin/generate-initial-content", response_model=GenerateContentResponse)
-def generate_initial_content_endpoint(
+async def generate_initial_content_endpoint(
+    request: GenerateContentRequest = GenerateContentRequest(),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
 ):
-    """Generate initial content for all learning modes (admin only)."""
-    from openai import OpenAI
-
+    """
+    Generate initial content for all learning modes (admin only).
+    Używa równoległego przetwarzania dla szybszego generowania.
+    Generuje treści w aktywnym języku użytkownika (FR lub EN).
+    Grupy są nazwane 'Ai Generated X' z kolejnymi numerami.
+    """
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
 
+    # Użyj aktywnego języka użytkownika
+    active_lang = current_user.active_language
+    lang_config = LANGUAGE_CONFIG[active_lang]
+    lang_code = lang_config["code"]
+
+    group_count = request.group_count
+    items_per_group = request.items_per_group
+
     print("\n" + "=" * 50)
-    print("GENERATING INITIAL CONTENT (B1 level)")
+    print(f"GENERATING AI CONTENT (B1 level, {lang_code}) - {group_count} groups x {items_per_group} items")
     print("=" * 50)
 
-    client = OpenAI(api_key=api_key)
     groups_created = 0
     items_created = 0
 
-    group_names = [
-        ("Zestaw startowy 1", "Podstawowe słownictwo i zwroty B1"),
-        ("Zestaw startowy 2", "Rozszerzony zestaw B1"),
+    content_types = [
+        ("translate_pl_target", f"Tłumaczenie PL → {lang_code}", TranslatePlToTargetGroup, TranslatePlToTarget),
+        ("translate_target_pl", f"Tłumaczenie {lang_code} → PL", TranslateTargetToPlGroup, TranslateTargetToPl),
+        ("guess_object", "Zgadnij przedmiot", GuessObjectGroup, GuessObject),
+        ("fill_blank", "Uzupełnij lukę", FillBlankGroup, FillBlank),
     ]
 
-    # ========================================
-    # TRANSLATE PL → FR
-    # ========================================
-    print("\n[1/4] Generowanie: Tłumaczenie PL → FR")
-    for i, (name, desc) in enumerate(group_names):
-        print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = TranslatePlToTargetGroup(name=f"PL→FR: {name}", description=desc, language=TargetLanguage.FR)
-        session.add(group)
-        session.commit()
-        session.refresh(group)
-        groups_created += 1
+    for idx, (content_type, label, GroupModel, ItemModel) in enumerate(content_types, 1):
+        print(f"\n[{idx}/4] Generowanie: {label}...", flush=True)
 
-        print(f"  Generowanie 20 elementów...", flush=True)
-        try:
-            prompt = f"""Wygeneruj 20 par zdań PL-FR na poziomie B1. Mieszanka: słownictwo, gramatyka, zwroty.
-Format JSON (bez dodatkowego tekstu):
-[{{"text_pl": "...", "text_fr": "...", "category": "mixed"}}]"""
-            response = client.responses.create(model="gpt-5-nano", input=prompt)
-            output_text = response.output_text.strip()
-            if output_text.startswith("```json"):
-                output_text = output_text[7:]
-            if output_text.endswith("```"):
-                output_text = output_text[:-3]
-            items = json.loads(output_text.strip())
+        # Znajdź następny indeks dla grup AI
+        next_index = get_next_ai_group_index(session, GroupModel, active_lang)
 
-            for item in items:
-                if item.get("text_pl") and item.get("text_fr"):
-                    db_item = TranslatePlToTarget(
-                        text_pl=item["text_pl"],
-                        text_target=item["text_fr"],
-                        category=item.get("category", "mixed"),
-                        group_id=group.id
-                    )
-                    session.add(db_item)
-                    items_created += 1
+        # Twórz grupy z kolejnymi numerami
+        created_groups = []
+        for i in range(group_count):
+            group_name = f"Ai Generated {next_index + i}"
+            group_desc = f"Wygenerowano automatycznie przez AI (B1, {lang_code})"
+            group = GroupModel(name=group_name, description=group_desc, language=active_lang)
+            session.add(group)
             session.commit()
-            print(f"  ✓ Grupa {i+1}/2 gotowa", flush=True)
-        except Exception as e:
-            print(f"  ✗ Błąd: {e}", flush=True)
+            session.refresh(group)
+            created_groups.append(group)
+            groups_created += 1
 
-    # ========================================
-    # TRANSLATE FR → PL
-    # ========================================
-    print("\n[2/4] Generowanie: Tłumaczenie FR → PL", flush=True)
-    for i, (name, desc) in enumerate(group_names):
-        print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = TranslateTargetToPlGroup(name=f"FR→PL: {name}", description=desc, language=TargetLanguage.FR)
-        session.add(group)
-        session.commit()
-        session.refresh(group)
-        groups_created += 1
+        # Generuj zawartość równolegle (wszystkie grupy naraz)
+        total_items_needed = items_per_group * len(created_groups)
 
-        print(f"  Generowanie 20 elementów...", flush=True)
         try:
-            prompt = f"""Wygeneruj 20 par zdań FR-PL na poziomie B1. Mieszanka: słownictwo, gramatyka, zwroty.
-Format JSON (bez dodatkowego tekstu):
-[{{"text_fr": "...", "text_pl": "...", "category": "mixed"}}]"""
-            response = client.responses.create(model="gpt-5-nano", input=prompt)
-            output_text = response.output_text.strip()
-            if output_text.startswith("```json"):
-                output_text = output_text[7:]
-            if output_text.endswith("```"):
-                output_text = output_text[:-3]
-            items = json.loads(output_text.strip())
+            if content_type == "translate_pl_target" or content_type == "translate_target_pl":
+                all_items = await generate_ai_content_parallel("B1", total_items_needed, "mixed", active_lang, batch_size=10)
+            elif content_type == "guess_object":
+                all_items = await generate_guess_object_parallel("B1", total_items_needed, active_lang, batch_size=10)
+            elif content_type == "fill_blank":
+                all_items = await generate_fill_blank_parallel("B1", total_items_needed, None, active_lang, batch_size=10)
+            else:
+                all_items = []
 
-            for item in items:
-                if item.get("text_fr") and item.get("text_pl"):
-                    db_item = TranslateTargetToPl(
-                        text_target=item["text_fr"],
-                        text_pl=item["text_pl"],
-                        category=item.get("category", "mixed"),
-                        group_id=group.id
-                    )
-                    session.add(db_item)
-                    items_created += 1
-            session.commit()
-            print(f"  ✓ Grupa {i+1}/2 gotowa", flush=True)
-        except Exception as e:
-            print(f"  ✗ Błąd: {e}", flush=True)
+            # Rozdziel elementy między grupy
+            items_per_group_actual = len(all_items) // len(created_groups) if created_groups else 0
+            for i, group in enumerate(created_groups):
+                start_idx = i * items_per_group_actual
+                end_idx = start_idx + items_per_group_actual if i < len(created_groups) - 1 else len(all_items)
+                group_items = all_items[start_idx:end_idx]
 
-    # ========================================
-    # GUESS OBJECT
-    # ========================================
-    print("\n[3/4] Generowanie: Zgadnij przedmiot", flush=True)
-    for i, (name, desc) in enumerate(group_names):
-        print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = GuessObjectGroup(name=f"Zgadnij: {name}", description=desc, language=TargetLanguage.FR)
-        session.add(group)
-        session.commit()
-        session.refresh(group)
-        groups_created += 1
+                for item in group_items:
+                    try:
+                        if content_type == "translate_pl_target":
+                            if item.get("text_pl") and item.get("text_target"):
+                                db_item = ItemModel(
+                                    text_pl=item["text_pl"],
+                                    text_target=item["text_target"],
+                                    category=item.get("category", "mixed"),
+                                    group_id=group.id
+                                )
+                                session.add(db_item)
+                                items_created += 1
+                        elif content_type == "translate_target_pl":
+                            if item.get("text_pl") and item.get("text_target"):
+                                db_item = ItemModel(
+                                    text_target=item["text_target"],
+                                    text_pl=item["text_pl"],
+                                    category=item.get("category", "mixed"),
+                                    group_id=group.id
+                                )
+                                session.add(db_item)
+                                items_created += 1
+                        elif content_type == "guess_object":
+                            if item.get("description_target") and item.get("answer_target"):
+                                db_item = ItemModel(
+                                    description_target=item["description_target"],
+                                    description_pl=item.get("description_pl"),
+                                    answer_target=item["answer_target"],
+                                    answer_pl=item.get("answer_pl"),
+                                    category=item.get("category"),
+                                    group_id=group.id
+                                )
+                                session.add(db_item)
+                                items_created += 1
+                        elif content_type == "fill_blank":
+                            if item.get("sentence_with_blank") and item.get("answer"):
+                                db_item = ItemModel(
+                                    sentence_with_blank=item["sentence_with_blank"],
+                                    sentence_pl=item.get("sentence_pl"),
+                                    answer=item["answer"],
+                                    full_sentence=item.get("full_sentence", ""),
+                                    hint=item.get("hint"),
+                                    grammar_focus=item.get("grammar_focus"),
+                                    group_id=group.id
+                                )
+                                session.add(db_item)
+                                items_created += 1
+                    except Exception as e:
+                        print(f"    Error adding item: {e}")
 
-        print(f"  Generowanie 20 zagadek...", flush=True)
-        try:
-            prompt = """Wygeneruj 20 zagadek słownych po francusku na poziomie B1.
-Opis 2-3 zdania, odpowiedź z rodzajnikiem (le/la/un/une).
-Format JSON:
-[{"description_target": "...", "description_pl": "...", "answer_target": "...", "answer_pl": "...", "category": "..."}]"""
-            response = client.responses.create(model="gpt-5-nano", input=prompt)
-            output_text = response.output_text.strip()
-            if output_text.startswith("```json"):
-                output_text = output_text[7:]
-            if output_text.endswith("```"):
-                output_text = output_text[:-3]
-            items = json.loads(output_text.strip())
+                session.commit()
 
-            for item in items:
-                # Fallback for old keys if AI outputs them
-                desc_target = item.get("description_target") or item.get("description_fr")
-                answ_target = item.get("answer_target") or item.get("answer_fr")
-
-                if desc_target and answ_target:
-                    db_item = GuessObject(
-                        description_target=desc_target,
-                        description_pl=item.get("description_pl"),
-                        answer_target=answ_target,
-                        answer_pl=item.get("answer_pl"),
-                        category=item.get("category"),
-                        group_id=group.id
-                    )
-                    session.add(db_item)
-                    items_created += 1
-            session.commit()
-            print(f"  ✓ Grupa {i+1}/2 gotowa", flush=True)
-        except Exception as e:
-            print(f"  ✗ Błąd: {e}", flush=True)
-
-    # ========================================
-    # FILL BLANK
-    # ========================================
-    print("\n[4/4] Generowanie: Uzupełnij lukę", flush=True)
-    for i, (name, desc) in enumerate(group_names):
-        print(f"  Tworzenie grupy: {name}...", flush=True)
-        group = FillBlankGroup(name=f"Uzupełnij: {name}", description=desc, language=TargetLanguage.FR)
-        session.add(group)
-        session.commit()
-        session.refresh(group)
-        groups_created += 1
-
-        print(f"  Generowanie 20 ćwiczeń...", flush=True)
-        try:
-            prompt = """Wygeneruj 20 ćwiczeń "uzupełnij lukę" po francusku na poziomie B1.
-Luka jako ___. Odpowiedź jednoznaczna.
-Format JSON:
-[{"sentence_with_blank": "...", "sentence_pl": "...", "answer": "...", "full_sentence": "...", "hint": "...", "grammar_focus": "verb|article|preposition|pronoun|agreement"}]"""
-            response = client.responses.create(model="gpt-5-nano", input=prompt)
-            output_text = response.output_text.strip()
-            if output_text.startswith("```json"):
-                output_text = output_text[7:]
-            if output_text.endswith("```"):
-                output_text = output_text[:-3]
-            items = json.loads(output_text.strip())
-
-            for item in items:
-                # Fallback mapping
-                sent_blank = item.get("sentence_with_blank") or item.get("sentence_target_with_blank")
-                answ = item.get("answer") or item.get("answer_target")
-                full_sent = item.get("full_sentence") or item.get("sentence_target")
-                
-                if sent_blank and answ:
-                    db_item = FillBlank(
-                        sentence_with_blank=sent_blank,
-                        sentence_pl=item.get("sentence_pl"),
-                        answer=answ,
-                        full_sentence=full_sent,
-                        hint=item.get("hint"),
-                        grammar_focus=item.get("grammar_focus") or item.get("category"),
-                        group_id=group.id
-                    )
-                    session.add(db_item)
-                    items_created += 1
-            session.commit()
-            print(f"  ✓ Grupa {i+1}/2 gotowa", flush=True)
+            print(f"  ✓ {label} gotowe ({len(created_groups)} grup)", flush=True)
         except Exception as e:
             print(f"  ✗ Błąd: {e}", flush=True)
 
     print("\n" + "=" * 50)
-    print(f"GENEROWANIE ZAKOŃCZONE! Grupy: {groups_created}, Elementy: {items_created}")
+    print(f"GENEROWANIE ZAKOŃCZONE! Język: {lang_code}, Grupy: {groups_created}, Elementy: {items_created}")
     print("=" * 50 + "\n", flush=True)
 
     return GenerateContentResponse(
         success=True,
-        message=f"Wygenerowano {groups_created} grup i {items_created} elementów",
+        message=f"Wygenerowano {groups_created} grup i {items_created} elementów ({lang_code})",
         groups_created=groups_created,
         items_created=items_created
     )

@@ -717,8 +717,11 @@ export interface GenerateContentResponse {
 }
 
 export const adminApi = {
-    generateInitialContent: async (): Promise<GenerateContentResponse> => {
-        const response = await api.post<GenerateContentResponse>('/api/admin/generate-initial-content')
+    generateInitialContent: async (groupCount?: number, itemsPerGroup?: number): Promise<GenerateContentResponse> => {
+        const response = await api.post<GenerateContentResponse>('/api/admin/generate-initial-content', {
+            group_count: groupCount,
+            items_per_group: itemsPerGroup
+        })
         return response.data
     }
 }

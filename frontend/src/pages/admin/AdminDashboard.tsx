@@ -9,6 +9,7 @@ import {
     Folder, HelpCircle, TextCursorInput, Shield, Gamepad2, Sparkles, Loader2
 } from 'lucide-react';
 import { WordleModal } from '@/components/WordleModal';
+import GenerateContentDialog from '@/components/admin/GenerateContentDialog';
 import { wordleApi, adminApi, dashboardApi, type DashboardStats } from '@/lib/api';
 
 export default function AdminDashboard() {
@@ -20,6 +21,7 @@ export default function AdminDashboard() {
     const [generating, setGenerating] = useState(false);
     const [generateMessage, setGenerateMessage] = useState<string | null>(null);
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [showGenerateDialog, setShowGenerateDialog] = useState(false);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -94,14 +96,17 @@ export default function AdminDashboard() {
             variant: 'outline' as const,
         },
     ];
-    const handleGenerateContent = async () => {
+    const handleGenerateContent = async (groupCount: number, itemsPerGroup: number) => {
         if (generating) return;
         setGenerating(true);
         setGenerateMessage("Generowanie treści... (może potrwać 1-2 minuty)");
         try {
-            const res = await adminApi.generateInitialContent();
+            const res = await adminApi.generateInitialContent(groupCount, itemsPerGroup);
             setGenerateMessage(`✓ ${res.message}`);
             setTimeout(() => setGenerateMessage(null), 5000);
+            // Odśwież statystyki po wygenerowaniu
+            const data = await dashboardApi.getStats();
+            setStats(data);
         } catch (e) {
             setGenerateMessage("✗ Błąd generowania");
             setTimeout(() => setGenerateMessage(null), 5000);
@@ -146,7 +151,7 @@ export default function AdminDashboard() {
                 <div className="flex gap-3 items-center">
                     <Button
                         variant="default"
-                        onClick={handleGenerateContent}
+                        onClick={() => setShowGenerateDialog(true)}
                         disabled={generating}
                         className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                     >
@@ -253,6 +258,14 @@ export default function AdminDashboard() {
                     }
                 }}
                 checkWord={handleWordleCheck}
+            />
+
+            {/* Generate Content Dialog */}
+            <GenerateContentDialog
+                open={showGenerateDialog}
+                onOpenChange={setShowGenerateDialog}
+                onGenerate={handleGenerateContent}
+                loading={generating}
             />
         </div>
     );

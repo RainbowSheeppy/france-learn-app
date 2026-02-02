@@ -47,3 +47,4 @@ htmlcov/
 # Railway (local secrets)
 .railway/
 railway_tut.md
+railway.md

@@ -120,7 +120,7 @@ export default function ImportFiszkiDialog({
                     <DialogTitle>Importuj Fiszki</DialogTitle>
                     <DialogDescription>
                         Wybierz grupę docelową i prześlij plik CSV z fiszkami.
-                        Wymagane kolumny: text_pl, text_fr. Opcjonalnie: image_url.
+                        Wymagane kolumny: text_pl, text_target. Opcjonalnie: image_url.
                     </DialogDescription>
                 </DialogHeader>
 

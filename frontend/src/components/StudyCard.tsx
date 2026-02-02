@@ -32,7 +32,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ fiszka, onResult, onSkip }
     const checkAnswer = () => {
         if (!input.trim()) return;
 
-        const isCorrect = normalizeForComparison(input) === normalizeForComparison(fiszka.text_fr);
+        const isCorrect = normalizeForComparison(input) === normalizeForComparison(fiszka.text_target);
         setStatus(isCorrect ? 'correct' : 'wrong');
 
         if (isCorrect) {
@@ -157,14 +157,14 @@ export const StudyCard: React.FC<StudyCardProps> = ({ fiszka, onResult, onSkip }
                     {status === 'correct' && (
                         <div className="mt-4 text-center animate-slide-up">
                             <p className={`text-sm mb-1 ${textMuted}`}>Poprawna pisownia:</p>
-                            <p className="text-lg font-bold text-emerald-600">{fiszka.text_fr}</p>
+                            <p className="text-lg font-bold text-emerald-600">{fiszka.text_target}</p>
                         </div>
                     )}
 
                     {status === 'wrong' && (
                         <div className="mt-4 text-center animate-slide-up">
                             <p className={`text-sm mb-1 ${textMuted}`}>Poprawna odpowiedź:</p>
-                            <p className="text-lg font-bold text-red-600">{fiszka.text_fr}</p>
+                            <p className="text-lg font-bold text-red-600">{fiszka.text_target}</p>
                             <button
                                 onClick={() => onResult(false)}
                                 className={`mt-4 py-2 px-6 rounded-full text-sm font-medium transition-all duration-300 ${isHK

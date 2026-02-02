@@ -10,7 +10,6 @@ interface GamifiedStatusWidgetProps {
 
 export const GamifiedStatusWidget: React.FC<GamifiedStatusWidgetProps> = ({ points, currentStreak }) => {
     const [prevPoints, setPrevPoints] = useState(points);
-    const delta = points - prevPoints;
 
     useEffect(() => {
         if (points !== prevPoints) {

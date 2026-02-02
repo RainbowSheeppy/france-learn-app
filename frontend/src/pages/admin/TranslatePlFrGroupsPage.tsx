@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { translatePlFrApi, type Group, type GroupCreate, type GroupUpdate } from '@/lib/api'
+import { translatePlFrApi, aiApi, type Group, type GroupCreate, type GroupUpdate, type TranslateItemCreate } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, ArrowRight, BookA, GraduationCap } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, ArrowRight, BookA, GraduationCap, Wand2 } from 'lucide-react'
 import GroupDialog from '@/components/admin/GroupDialog'
 import DeleteGroupDialog from '@/components/admin/DeleteGroupDialog'
+import GenerateGroupDialog from '@/components/admin/GenerateGroupDialog'
 import { useLanguageStore, getTranslateFromPLLabel } from '@/store/languageStore'
 
 export default function TranslatePlFrGroupsPage() {
@@ -17,6 +18,8 @@ export default function TranslatePlFrGroupsPage() {
 
     // Dialog states
     const [dialogOpen, setDialogOpen] = useState(false)
+    const [genDialogOpen, setGenDialogOpen] = useState(false)
+    const [genLoading, setGenLoading] = useState(false)
     const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
     const [editingGroup, setEditingGroup] = useState<Group | null>(null)
 
@@ -92,6 +95,44 @@ export default function TranslatePlFrGroupsPage() {
         navigate(`/admin/translate-pl-fr/${groupId}`)
     }
 
+    const handleGenerate = async (level: string, count: number, topic: string) => {
+        setGenLoading(true)
+        try {
+            // 1. Generate items using AI
+            const generatedItems = await aiApi.generate(level, count, topic)
+
+            // 2. Create a new group
+            const topicLabel = topic ? topic : 'Różne'
+            const groupName = `AI ${level}: ${topicLabel}`
+            const groupDesc = `Wygenerowano automatycznie. Poziom: ${level}, Temat: ${topicLabel}, Ilość: ${count}`
+
+            const newGroup = await translatePlFrApi.createGroup({
+                name: groupName,
+                description: groupDesc,
+                language: activeLanguage
+            })
+
+            // 3. Transform and save items to the group
+            const itemsToCreate: TranslateItemCreate[] = generatedItems.map(item => ({
+                text_pl: item.text_pl,
+                text_target: item.text_target,
+                category: item.category || 'mixed',
+                group_id: newGroup.id
+            }))
+
+            await translatePlFrApi.batchCreate({
+                items: itemsToCreate,
+                group_id: newGroup.id
+            })
+
+            await loadGroups()
+        } catch (err) {
+            console.error('Failed to generate group:', err)
+        } finally {
+            setGenLoading(false)
+        }
+    }
+
     if (loading) return <div className="text-center p-10"><Loader2 className="animate-spin mx-auto" /></div>
 
     if (error) {
@@ -128,12 +169,28 @@ export default function TranslatePlFrGroupsPage() {
                     <Button onClick={openCreateDialog} size="lg" className="gap-2">
                         <Plus className="w-5 h-5" /> Dodaj grupę
                     </Button>
+                    <Button
+                        onClick={() => setGenDialogOpen(true)}
+                        size="lg"
+                        variant="outline"
+                        className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+                    >
+                        <Wand2 className="w-5 h-5" /> Generuj AI
+                    </Button>
                 </div>
             </div>
 
             {groups.length === 0 ? (
                 <div className="text-center p-12 bg-gray-50 rounded-xl border-2 border-dashed">
-                    <p className="text-muted-foreground">Brak grup. Dodaj pierwszą grupę.</p>
+                    <p className="text-muted-foreground">Brak grup. Dodaj pierwszą grupę lub wygeneruj ją przy użyciu AI.</p>
+                    <div className="mt-4 flex justify-center gap-4">
+                        <Button onClick={openCreateDialog}>
+                            <Plus className="w-4 h-4 mr-2" /> Dodaj ręcznie
+                        </Button>
+                        <Button onClick={() => setGenDialogOpen(true)} variant="outline" className="border-purple-200 text-purple-700">
+                            <Wand2 className="w-4 h-4 mr-2" /> Generuj AI
+                        </Button>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -156,6 +213,9 @@ export default function TranslatePlFrGroupsPage() {
                                         {group.description}
                                     </CardDescription>
                                 )}
+                                <div className="mt-2 text-sm text-muted-foreground font-medium">
+                                    {(group.total_items || 0)} elementów
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 <div className="flex gap-2 pt-2">
@@ -181,6 +241,13 @@ export default function TranslatePlFrGroupsPage() {
                     ))}
                 </div>
             )}
+
+            <GenerateGroupDialog
+                open={genDialogOpen}
+                onOpenChange={setGenDialogOpen}
+                onGenerate={handleGenerate}
+                loading={genLoading}
+            />
 
             <GroupDialog
                 open={dialogOpen}

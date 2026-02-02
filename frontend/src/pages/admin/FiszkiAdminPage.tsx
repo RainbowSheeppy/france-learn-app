@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { useLanguageStore } from '@/store/languageStore'
 import { fiszkiApi, groupsApi, type Fiszka, type FiszkaCreate, type FiszkaUpdate, type Group } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,6 +19,7 @@ import ImportFiszkiDialog from '@/components/admin/ImportFiszkiDialog'
 export default function FiszkiAdminPage() {
     const [fiszki, setFiszki] = useState<Fiszka[]>([])
     const [groups, setGroups] = useState<Group[]>([])
+    const { activeLanguage } = useLanguageStore()
     const [selectedGroup, setSelectedGroup] = useState<string>('all')
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -236,14 +238,14 @@ export default function FiszkiAdminPage() {
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {fiszka.text_fr}
+                                    {fiszka.text_target}
                                 </p>
 
                                 {fiszka.image_url && (
                                     <div className="aspect-video rounded-lg overflow-hidden bg-muted">
                                         <img
                                             src={fiszka.image_url}
-                                            alt={fiszka.text_fr}
+                                            alt={fiszka.text_target}
                                             className="w-full h-full object-cover"
                                         />
                                     </div>
@@ -282,6 +284,13 @@ export default function FiszkiAdminPage() {
                 fiszka={editingFiszka}
                 mode={dialogMode}
                 groups={groups} // Pass groups for selection
+                labels={activeLanguage === 'fr' ? {
+                    textTarget: 'Tekst w jęz. obcym (FR)',
+                    placeholderTarget: 'np. Bonjour'
+                } : {
+                    textTarget: 'Tekst w jęz. obcym (EN)',
+                    placeholderTarget: 'np. Hello'
+                }}
             />
 
             <ImportFiszkiDialog

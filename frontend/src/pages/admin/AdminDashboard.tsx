@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
@@ -9,7 +9,8 @@ import {
     Folder, HelpCircle, TextCursorInput, Shield, Gamepad2, Sparkles, Loader2
 } from 'lucide-react';
 import { WordleModal } from '@/components/WordleModal';
-import { wordleApi, adminApi } from '@/lib/api';
+import GenerateContentDialog from '@/components/admin/GenerateContentDialog';
+import { wordleApi, adminApi, dashboardApi, type DashboardStats } from '@/lib/api';
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
@@ -19,9 +20,23 @@ export default function AdminDashboard() {
     const [wordleTarget, setWordleTarget] = useState("");
     const [generating, setGenerating] = useState(false);
     const [generateMessage, setGenerateMessage] = useState<string | null>(null);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const data = await dashboardApi.getStats();
+                setStats(data);
+            } catch (err) {
+                console.error("Failed to fetch admin stats", err);
+            }
+        };
+        fetchStats();
+    }, [activeLanguage]);
 
     const langName = activeLanguage === 'fr' ? 'francuski' : 'angielski';
-    const langNameGen = activeLanguage === 'fr' ? 'francuskiego' : 'angielskiego';
+
 
     const managementSections = [
         {
@@ -81,14 +96,17 @@ export default function AdminDashboard() {
             variant: 'outline' as const,
         },
     ];
-    const handleGenerateContent = async () => {
+    const handleGenerateContent = async (groupCount: number, itemsPerGroup: number) => {
         if (generating) return;
         setGenerating(true);
         setGenerateMessage("Generowanie treści... (może potrwać 1-2 minuty)");
         try {
-            const res = await adminApi.generateInitialContent();
+            const res = await adminApi.generateInitialContent(groupCount, itemsPerGroup);
             setGenerateMessage(`✓ ${res.message}`);
             setTimeout(() => setGenerateMessage(null), 5000);
+            // Odśwież statystyki po wygenerowaniu
+            const data = await dashboardApi.getStats();
+            setStats(data);
         } catch (e) {
             setGenerateMessage("✗ Błąd generowania");
             setTimeout(() => setGenerateMessage(null), 5000);
@@ -133,7 +151,7 @@ export default function AdminDashboard() {
                 <div className="flex gap-3 items-center">
                     <Button
                         variant="default"
-                        onClick={handleGenerateContent}
+                        onClick={() => setShowGenerateDialog(true)}
                         disabled={generating}
                         className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                     >
@@ -173,10 +191,10 @@ export default function AdminDashboard() {
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Wszystkie fiszki', value: '—', icon: BookOpen, color: 'text-[hsl(16,90%,60%)]' },
-                    { label: 'Grupy tłumaczeń', value: '—', icon: Languages, color: 'text-[hsl(260,60%,60%)]' },
-                    { label: 'Ćwiczenia', value: '—', icon: TextCursorInput, color: 'text-[hsl(160,50%,55%)]' },
-                    { label: 'Zagadki', value: '—', icon: HelpCircle, color: 'text-[hsl(45,90%,55%)]' },
+                    { label: 'Wszystkie fiszki', value: stats?.fiszki.total ?? '—', icon: BookOpen, color: 'text-[hsl(16,90%,60%)]' },
+                    { label: 'Grupy tłumaczeń', value: stats ? (stats.translate_pl_fr.total + stats.translate_fr_pl.total) : '—', icon: Languages, color: 'text-[hsl(260,60%,60%)]' },
+                    { label: 'Ćwiczenia', value: stats?.fill_blank.total ?? '—', icon: TextCursorInput, color: 'text-[hsl(160,50%,55%)]' },
+                    { label: 'Zagadki', value: stats?.guess_object.total ?? '—', icon: HelpCircle, color: 'text-[hsl(45,90%,55%)]' },
                 ].map((stat, index) => {
                     const Icon = stat.icon;
                     return (
@@ -240,6 +258,14 @@ export default function AdminDashboard() {
                     }
                 }}
                 checkWord={handleWordleCheck}
+            />
+
+            {/* Generate Content Dialog */}
+            <GenerateContentDialog
+                open={showGenerateDialog}
+                onOpenChange={setShowGenerateDialog}
+                onGenerate={handleGenerateContent}
+                loading={generating}
             />
         </div>
     );

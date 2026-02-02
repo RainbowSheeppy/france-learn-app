@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
-import { useLanguageStore, getTranslateFromPLLabel, getTranslateToPLLabel, getAppTitle } from '@/store/languageStore';
+import { useLanguageStore, getTranslateFromPLLabel, getTranslateToPLLabel } from '@/store/languageStore';
 import { BookOpen, Languages, MessageSquare, HelpCircle, TextCursorInput, Sparkles, Trophy, Flame, Star, TrendingUp, Award, Info, X } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { dashboardApi, DashboardStats } from '@/lib/api';
@@ -11,7 +11,6 @@ import BadgeDisplay from '@/components/BadgeDisplay';
 // Study modes are now generated dynamically based on active language
 const getStudyModes = (activeLanguage: 'fr' | 'en') => {
     const langFlag = activeLanguage === 'fr' ? '🇫🇷' : '🇬🇧';
-    const langCode = activeLanguage.toUpperCase();
 
     return [
         {

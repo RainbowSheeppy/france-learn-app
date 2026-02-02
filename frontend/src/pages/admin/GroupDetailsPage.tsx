@@ -200,14 +200,14 @@ export default function GroupDetailsPage() {
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {fiszka.text_fr}
+                                    {fiszka.text_target}
                                 </p>
 
                                 {fiszka.image_url && (
                                     <div className="aspect-video rounded-lg overflow-hidden bg-muted">
                                         <img
                                             src={fiszka.image_url}
-                                            alt={fiszka.text_fr}
+                                            alt={fiszka.text_target}
                                             className="w-full h-full object-cover"
                                         />
                                     </div>

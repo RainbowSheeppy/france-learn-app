@@ -13,8 +13,8 @@ interface GuessObjectItemDialogProps {
     item?: GuessObjectItem | null
     mode: 'create' | 'edit'
     labels?: {
-        descriptionFr: string
-        answerFr: string
+        descriptionTarget: string
+        answerTarget: string
         placeholderDesc: string
         placeholderAnswer: string
     }
@@ -27,15 +27,15 @@ export default function GuessObjectItemDialog({
     item,
     mode,
     labels = {
-        descriptionFr: 'Opis w języku obcym (Pytanie)',
-        answerFr: 'Odpowiedź (jęz. obcy)',
+        descriptionTarget: 'Opis w języku obcym (Pytanie)',
+        answerTarget: 'Odpowiedź (jęz. obcy)',
         placeholderDesc: "This is a red fruit...",
         placeholderAnswer: "an apple"
     }
 }: GuessObjectItemDialogProps) {
-    const [descriptionFr, setDescriptionFr] = useState(item?.description_fr || '')
+    const [descriptionTarget, setDescriptionTarget] = useState(item?.description_target || '')
     const [descriptionPl, setDescriptionPl] = useState(item?.description_pl || '')
-    const [answerFr, setAnswerFr] = useState(item?.answer_fr || '')
+    const [answerTarget, setAnswerTarget] = useState(item?.answer_target || '')
     const [answerPl, setAnswerPl] = useState(item?.answer_pl || '')
     const [category, setCategory] = useState(item?.category || '')
     const [hint, setHint] = useState(item?.hint || '')
@@ -44,16 +44,16 @@ export default function GuessObjectItemDialog({
     useEffect(() => {
         if (open) {
             if (item && mode === 'edit') {
-                setDescriptionFr(item.description_fr)
+                setDescriptionTarget(item.description_target)
                 setDescriptionPl(item.description_pl || '')
-                setAnswerFr(item.answer_fr)
+                setAnswerTarget(item.answer_target)
                 setAnswerPl(item.answer_pl || '')
                 setCategory(item.category || '')
                 setHint(item.hint || '')
             } else {
-                setDescriptionFr('')
+                setDescriptionTarget('')
                 setDescriptionPl('')
-                setAnswerFr('')
+                setAnswerTarget('')
                 setAnswerPl('')
                 setCategory('')
                 setHint('')
@@ -67,9 +67,9 @@ export default function GuessObjectItemDialog({
 
         try {
             await onSubmit({
-                description_fr: descriptionFr,
+                description_target: descriptionTarget,
                 description_pl: descriptionPl || null,
-                answer_fr: answerFr,
+                answer_target: answerTarget,
                 answer_pl: answerPl || null,
                 category: category || null,
                 hint: hint || null
@@ -93,11 +93,11 @@ export default function GuessObjectItemDialog({
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="description_fr">{labels.descriptionFr} <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="description_target">{labels.descriptionTarget} <span className="text-destructive">*</span></Label>
                         <Textarea
-                            id="description_fr"
-                            value={descriptionFr}
-                            onChange={(e) => setDescriptionFr(e.target.value)}
+                            id="description_target"
+                            value={descriptionTarget}
+                            onChange={(e) => setDescriptionTarget(e.target.value)}
                             placeholder={labels.placeholderDesc}
                             required
                             disabled={loading}
@@ -120,11 +120,11 @@ export default function GuessObjectItemDialog({
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="answer_fr">{labels.answerFr} <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="answer_target">{labels.answerTarget} <span className="text-destructive">*</span></Label>
                             <Input
-                                id="answer_fr"
-                                value={answerFr}
-                                onChange={(e) => setAnswerFr(e.target.value)}
+                                id="answer_target"
+                                value={answerTarget}
+                                onChange={(e) => setAnswerTarget(e.target.value)}
                                 placeholder={labels.placeholderAnswer}
                                 required
                                 disabled={loading}

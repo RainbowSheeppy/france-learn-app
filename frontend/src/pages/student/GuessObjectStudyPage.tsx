@@ -15,8 +15,8 @@ import { SessionSummary } from '@/components/SessionSummary';
 
 interface GuessObjectStudyItem {
     id: string;
-    description_fr: string;
-    answer_fr: string;
+    description_target: string;
+    answer_target: string;
     hint?: string | null;
     category?: string | null;
 }
@@ -147,7 +147,7 @@ export default function GuessObjectStudyPage() {
     const checkAnswer = async () => {
         if (!input.trim()) return;
         const current = items[currentIndex];
-        const isCorrect = normalizeForComparison(input) === normalizeForComparison(current.answer_fr);
+        const isCorrect = normalizeForComparison(input) === normalizeForComparison(current.answer_target);
 
         setStatus(isCorrect ? 'correct' : 'wrong');
 
@@ -296,7 +296,7 @@ export default function GuessObjectStudyPage() {
                         )}
                     </div>
                     <p className={`text-xl font-medium leading-relaxed ${colors.text}`}>
-                        {currentItem.description_fr}
+                        {currentItem.description_target}
                     </p>
 
                     {currentItem.hint && (
@@ -338,7 +338,7 @@ export default function GuessObjectStudyPage() {
                             <p className={`text-sm mb-1 ${isHK ? 'text-[hsl(350,60%,55%)]' : 'text-[hsl(160,40%,45%)]'}`}>
                                 {isHK ? '💖 Kawaii!' : '✓ Doskonale!'}
                             </p>
-                            <p className={`text-lg font-semibold ${isHK ? 'text-[hsl(350,50%,40%)]' : 'text-[hsl(160,45%,35%)]'}`}>{currentItem.answer_fr}</p>
+                            <p className={`text-lg font-semibold ${isHK ? 'text-[hsl(350,50%,40%)]' : 'text-[hsl(160,45%,35%)]'}`}>{currentItem.answer_target}</p>
                         </div>
                     )}
 
@@ -346,7 +346,7 @@ export default function GuessObjectStudyPage() {
                         <div className="space-y-4 animate-slide-up">
                             <div className="text-center">
                                 <p className="text-sm text-[hsl(350,60%,50%)] mb-1">Poprawna odpowiedź:</p>
-                                <p className="text-lg font-semibold text-[hsl(350,70%,40%)]">{currentItem.answer_fr}</p>
+                                <p className="text-lg font-semibold text-[hsl(350,70%,40%)]">{currentItem.answer_target}</p>
                             </div>
                             <div className="flex justify-center">
                                 <Button onClick={handleWrongNext} variant="ghost" className={colors.textMuted}>

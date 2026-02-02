@@ -79,6 +79,7 @@ export interface Group {
     language?: TargetLanguage
     created_at?: string
     updated_at?: string
+    total_items?: number
 }
 
 export interface GroupCreate {
@@ -96,7 +97,7 @@ export interface GroupUpdate {
 export interface Fiszka {
     id: string
     text_pl: string
-    text_fr: string
+    text_target: string
     image_url: string | null
     learned?: boolean
     half_learned?: boolean
@@ -108,14 +109,14 @@ export interface Fiszka {
 
 export interface FiszkaCreate {
     text_pl: string
-    text_fr: string
+    text_target: string
     image_url?: string | null
     group_id?: string | null
 }
 
 export interface FiszkaUpdate {
     text_pl?: string
-    text_fr?: string
+    text_target?: string
     image_url?: string | null
     group_id?: string | null
 }
@@ -124,7 +125,7 @@ export interface FiszkaUpdate {
 export interface TranslateItem {
     id: string;
     text_pl: string;
-    text_fr: string;
+    text_target: string;
     category?: string | null;
     group_id: string | null;
     created_at?: string;
@@ -132,15 +133,15 @@ export interface TranslateItem {
 }
 
 export interface TranslateItemCreate {
-    text_pl: string; // for Pl->Fr this is Question. For Fr->Pl this is Answer.
-    text_fr: string; // for Pl->Fr this is Answer. For Fr->Pl this is Question.
+    text_pl: string; // for Pl->Target this is Question. For Target->Pl this is Answer.
+    text_target: string; // for Pl->Target this is Answer. For Target->Pl this is Question.
     category?: string | null;
     group_id?: string | null;
 }
 
 export interface TranslateItemUpdate {
     text_pl?: string;
-    text_fr?: string;
+    text_target?: string;
     category?: string | null;
     group_id?: string | null;
 }
@@ -155,23 +156,23 @@ export interface GenerateRequest {
 
 export interface GeneratedItem {
     text_pl: string;
-    text_fr: string;
+    text_target: string;
     category?: string | null;
 }
 
-export interface BatchCreatePlFr {
+export interface BatchCreatePlToTarget {
     items: TranslateItemCreate[];
     group_id: string;
 }
 
-export interface BatchCreateFrPl {
+export interface BatchCreateTargetToPl {
     items: TranslateItemCreate[];
     group_id: string;
 }
 
 // AI Verification Types
 export interface AIVerifyRequest {
-    task_type: 'translate_pl_fr' | 'translate_fr_pl' | 'fill_blank';
+    task_type: 'translate_pl_to_target' | 'translate_target_to_pl' | 'translate_pl_fr' | 'translate_fr_pl' | 'fill_blank';
     item_id: string;
     user_answer: string;
     question: string;
@@ -340,7 +341,7 @@ export const translatePlFrApi = {
         return response.data
     },
 
-    batchCreate: async (data: BatchCreatePlFr): Promise<TranslateItem[]> => {
+    batchCreate: async (data: BatchCreatePlToTarget): Promise<TranslateItem[]> => {
         const response = await api.post<TranslateItem[]>('/translate-pl-fr/items/batch', data)
         return response.data
     }
@@ -396,7 +397,7 @@ export const translateFrPlApi = {
         return response.data
     },
 
-    batchCreate: async (data: BatchCreateFrPl): Promise<TranslateItem[]> => {
+    batchCreate: async (data: BatchCreateTargetToPl): Promise<TranslateItem[]> => {
         const response = await api.post<TranslateItem[]>('/translate-fr-pl/items/batch', data)
         return response.data
     }
@@ -409,9 +410,9 @@ export const translateFrPlApi = {
 
 export interface GuessObjectItem {
     id: string
-    description_fr: string
+    description_target: string
     description_pl?: string | null
-    answer_fr: string
+    answer_target: string
     answer_pl?: string | null
     category?: string | null
     hint?: string | null
@@ -421,9 +422,9 @@ export interface GuessObjectItem {
 }
 
 export interface GuessObjectItemCreate {
-    description_fr: string
+    description_target: string
     description_pl?: string | null
-    answer_fr: string
+    answer_target: string
     answer_pl?: string | null
     category?: string | null
     hint?: string | null
@@ -431,9 +432,9 @@ export interface GuessObjectItemCreate {
 }
 
 export interface GuessObjectItemUpdate {
-    description_fr?: string
+    description_target?: string
     description_pl?: string | null
-    answer_fr?: string
+    answer_target?: string
     answer_pl?: string | null
     category?: string | null
     hint?: string | null
@@ -441,9 +442,9 @@ export interface GuessObjectItemUpdate {
 }
 
 export interface GeneratedGuessObjectItem {
-    description_fr: string
+    description_target: string
     description_pl?: string | null
-    answer_fr: string
+    answer_target: string
     answer_pl?: string | null
     category?: string | null
     hint?: string | null
@@ -716,8 +717,11 @@ export interface GenerateContentResponse {
 }
 
 export const adminApi = {
-    generateInitialContent: async (): Promise<GenerateContentResponse> => {
-        const response = await api.post<GenerateContentResponse>('/api/admin/generate-initial-content')
+    generateInitialContent: async (groupCount?: number, itemsPerGroup?: number): Promise<GenerateContentResponse> => {
+        const response = await api.post<GenerateContentResponse>('/api/admin/generate-initial-content', {
+            group_count: groupCount,
+            items_per_group: itemsPerGroup
+        })
         return response.data
     }
 }

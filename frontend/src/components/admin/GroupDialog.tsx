@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
-import type { Group, GroupCreate, GroupUpdate, TargetLanguage } from '@/lib/api'
+import type { Group, GroupCreate, GroupUpdate } from '@/lib/api'
 import { useLanguageStore } from '@/store/languageStore'
 
 const formSchema = z.object({
@@ -154,7 +154,6 @@ export default function GroupDialog({
                                         <FormLabel>Język</FormLabel>
                                         <Select
                                             onValueChange={field.onChange}
-                                            defaultValue={field.value}
                                             value={field.value}
                                         >
                                             <FormControl>

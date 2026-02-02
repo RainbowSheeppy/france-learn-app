@@ -153,6 +153,9 @@ export default function FillBlankGroupsPage() {
                                         {group.description}
                                     </CardDescription>
                                 )}
+                                <div className="mt-2 text-sm text-muted-foreground font-medium">
+                                    {(group.total_items || 0)} elementów
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 <div className="flex gap-2 pt-2">

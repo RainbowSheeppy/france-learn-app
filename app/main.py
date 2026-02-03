@@ -376,7 +376,7 @@ async def lifespan(app: FastAPI):
     # ============================================================
     # RESET DATABASE ON STARTUP - SET TO False AFTER FIRST DEPLOY
     # ============================================================
-    RESET_DB_ON_STARTUP = True  # <-- Change to False to keep data
+    RESET_DB_ON_STARTUP = False  # <-- Change to False to keep data
     # ============================================================
 
     # ============================================================
